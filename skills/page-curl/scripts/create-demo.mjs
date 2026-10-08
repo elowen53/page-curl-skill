@@ -1,21 +1,13 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import {normalizeConfig} from '../assets/runtime-support.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export async function buildDemo({ output, config } = {}) {
   if (!output) throw new Error('--output is required');
   const settings = config ? JSON.parse(await readFile(resolve(config), 'utf8')) : {};
-  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Config must be an object');
-  for (const key of Object.keys(settings)) if (!['title','pages','startSheet','startPage','mode'].includes(key)) throw new Error(`Unknown config key: ${key}`);
-  const mode=settings.mode??'auto';
-  if(!['auto','desktop','mobile'].includes(mode))throw new Error('mode must be auto, desktop or mobile');
-  if (settings.title !== undefined && typeof settings.title !== 'string') throw new Error('title must be a string');
-  if (settings.pages !== undefined && (!Array.isArray(settings.pages) || settings.pages.length < 2 || settings.pages.length % 2)) throw new Error('pages must contain an even number of at least two images');
-  const count = settings.pages ? settings.pages.length / 2 : 6;
-  const startSheet = settings.startSheet ?? Math.min(3, count);
-  if (!Number.isInteger(startSheet) || startSheet < 0 || startSheet > count) throw new Error(`startSheet must be an integer from 0 to ${count}`);
-  const startPage=settings.startPage??startSheet*2;
-  if(!Number.isInteger(startPage)||startPage<0||startPage>count*2)throw new Error(`startPage must be an integer from 0 to ${count*2}`);
+  const {mode,startSheet,startPage}=normalizeConfig(settings);
+  const count=settings.pages?settings.pages.length/2:6;
   const pages = [];
   for (const name of settings.pages ?? []) {
     if (typeof name !== 'string' || !name) throw new Error('Each page must be a local image path');
@@ -29,30 +21,29 @@ export async function buildDemo({ output, config } = {}) {
     if(!signatureOK)throw new Error(`Invalid ${mime} signature: ${name}`);
     pages.push(`data:${mime};base64,${bytes.toString('base64')}`);
   }
-  const [shell,code,vendor,mobile,cone] = await Promise.all(['demo-shell.html','page-curl.js','three.module.min.js','mobile-curl.js','cone-model.mjs'].map(name=>readFile(resolve(root,'assets',name),'utf8')));
+  const shell=await readFile(resolve(root,'assets/demo-shell.html'),'utf8');
+  const modules=new Map();
+  async function embed(name){
+    if(modules.has(name))return modules.get(name);
+    let code=await readFile(resolve(root,'assets',name),'utf8');
+    const dependencies=[...code.matchAll(/\bfrom\s+(['"])(\.\/[^'"]+)\1/g)];
+    for(const match of dependencies){
+      const url=await embed(match[2].slice(2));
+      code=code.replace(match[0],()=>`from '${url}'`);
+    }
+    const url=`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+    modules.set(name,url);return url;
+  }
+  const controller=await embed('responsive-controller.mjs'),vendor=await embed('three.module.min.js');
   const title = settings.title ?? '杂志翻页';
   const escapedTitle=title.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const json = JSON.stringify({pages,startSheet,startPage,mode}).replace(/</g,'\\u003c');
-  const runtime=`import {createConeModel,clamp,coneShader} from 'data:text/javascript;base64,${Buffer.from(cone).toString('base64')}';
-const settings=${json};
-async function mountDesktop(pageCurlConfig){${code}\nreturn {page:()=>spread*2,dispose};}
-async function mountMobile(pageCurlConfig){${mobile}}
-const media=matchMedia('(min-width: 768px) and (orientation: landscape)');
-let active=null,activeMode=null,savedPage=settings.startPage,queue=Promise.resolve();
-async function switchMode(){
-  const mode=settings.mode==='auto'?(media.matches?'desktop':'mobile'):settings.mode;
-  if(active && mode===activeMode)return;
-  if(active){savedPage=active.page();active.dispose();active=null;}
-  const config={...settings,startPage:savedPage,startSheet:Math.floor(savedPage/2)};
-  active=await (mode==='desktop'?mountDesktop(config):mountMobile(config));activeMode=mode;
-}
-function schedule(){queue=queue.then(switchMode).catch(error=>{
-  document.querySelector('#status').textContent='加载失败：'+error.message;
-  console.error(error);
-});}
-if(settings.mode==='auto')media.addEventListener('change',schedule);
-schedule();`;
-  const html = shell.replace('__THREE_MODULE__',`data:text/javascript;base64,${Buffer.from(vendor).toString('base64')}`)
+  const runtime=`import {mountPageCurl} from '${controller}';
+const config=${json};
+const stage=document.querySelector('#stage'),prev=document.querySelector('#prev'),next=document.querySelector('#next'),status=document.querySelector('#status');
+try{await mountPageCurl({THREE,stage,prev,next,status,config,onError:console.error});}
+catch(error){status.textContent='加载失败：'+error.message;console.error(error);}`;
+  const html = shell.replace('__THREE_MODULE__',vendor)
     .replace('__DEMO_CODE__',()=>runtime)
     .replace(/<title>[^<]*<\/title>/,()=>`<title>${escapedTitle}</title>`)
     .replace(/<h1>[^<]*<\/h1>/,()=>`<h1>${escapedTitle}</h1>`);

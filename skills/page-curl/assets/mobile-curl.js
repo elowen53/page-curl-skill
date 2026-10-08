@@ -1,28 +1,31 @@
-// Narrow-screen single-leaf cone model. Independent specimen artwork.
-const stage=document.querySelector('#stage'),status=document.querySelector('#status');
-const config=pageCurlConfig;
+import {prepareMount,loadTextures} from './runtime-support.mjs';
+import {createConeModel,clamp,coneShader} from './cone-model.mjs';
+/** @param {import('./api.js').MountOptions} options @returns {Promise<import('./api.js').PageCurlHandle>} */
+export async function mountMobile(options){
+const {THREE,stage,prev,next,status,config,env,scope,controller}=prepareMount(options);
+const {createCanvas,ResizeObserver,performance,devicePixelRatio}=env;
+try{
 const count=config.pages.length||12;
 let page=Math.min(config.startPage??config.startSheet*2,count-1),drag=null,turn=null;
-const controller=new AbortController();
 const scene=new THREE.Scene(),book=new THREE.Group();scene.add(book);
 const camera=new THREE.PerspectiveCamera(40,1,.1,20);
-const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+const renderer=scope.own(new THREE.WebGLRenderer({antialias:true,alpha:true}));
+scope.add(()=>renderer.setAnimationLoop(null));
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;
-stage.append(renderer.domElement);
+stage.append(renderer.domElement);scope.add(()=>renderer.domElement.remove());
 stage.dataset.mode='mobile';
 const canvas=renderer.domElement;
 canvas.style.touchAction='pan-y pinch-zoom';
 scene.add(new THREE.HemisphereLight(0xffffff,0xa1aeaf,1.7));
 const light=new THREE.DirectionalLight(0xffffff,2);
-light.position.set(.689,-1.15,2.15);light.castShadow=true;
+light.position.set(.689,-1.15,2.15);light.castShadow=true;scope.own(light.shadow);
 light.shadow.mapSize.set(2048,2048);
 Object.assign(light.shadow.camera,{left:-1.1,right:1.1,top:.8,bottom:-.8,near:1,far:10});
 light.shadow.camera.updateProjectionMatrix();light.shadow.bias=-.001;scene.add(light);
-const prev=document.querySelector('#prev'),next=document.querySelector('#next');
 prev.disabled=next.disabled=true;
 function specimen(index,blank=false){
-  const c=document.createElement('canvas');c.width=720;c.height=992;
+  const c=createCanvas();c.width=720;c.height=992;
   const ctx=c.getContext('2d');
   const dark=!blank && index%7===2;
   ctx.fillStyle=dark?'#242421':'#f5f4ef';ctx.fillRect(0,0,720,992);
@@ -37,14 +40,15 @@ function specimen(index,blank=false){
     });
     ctx.font='15px monospace';ctx.fillText(`PAGE ${index+1} / CONICAL ROLL`,40,974);
   }
-  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+  const t=scope.own(new THREE.CanvasTexture(c));t.colorSpace=THREE.SRGBColorSpace;
   t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;
 }
-const textures=await Promise.all(config.pages.map(url=>new THREE.TextureLoader().loadAsync(url))).catch(error=>{
-  status.textContent='页面图片无法解码，请检查输入文件。';throw error;
+const textures=await loadTextures(THREE,config.pages,scope).catch(error=>{
+  if(error.name!=='AbortError')status.textContent='页面图片无法解码，请检查输入文件。';throw error;
 });
+scope.assertActive();
 textures.forEach(t=>{t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=renderer.capabilities.getMaxAnisotropy();});
-const blank=specimen(0,true),geometry=new THREE.PlaneGeometry(1,1.377,64,88),sheets=[];
+const blank=specimen(0,true),geometry=scope.own(new THREE.PlaneGeometry(1,1.377,64,88)),sheets=[];
 const model=createConeModel(count);
 for(let index=0;index<count;index++){
   const uniforms={cone:{value:new THREE.Vector3()},tail:{value:new THREE.Vector4()},reach:{value:new THREE.Vector2(1,1)},
@@ -66,18 +70,20 @@ for(let index=0;index<count;index++){
       diffuseColor*=gl_FrontFacing?front:back;
     `);
   };
+  scope.own(material);
   const depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide});
   depth.onBeforeCompile=shader=>{
     Object.assign(shader.uniforms,uniforms);shader.vertexShader=coneShader+shader.vertexShader;
     shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','vec3 transformed=paperPosition(uv);');
   };
+  scope.own(depth);
   const mesh=new THREE.Mesh(geometry,material);mesh.customDepthMaterial=depth;
   mesh.castShadow=mesh.receiveShadow=true;book.add(mesh);
   sheets.push({mesh,uniforms,front,current:index<page?1:0,grab:{x:1,y:0}});
 }
 function updateStatus(){status.textContent=`${page+1} / ${count} 页`;}
 function begin(forward){
-  if(turn||drag)return;
+  if(scope.disposed||turn||drag)return;
   if(forward?page>=count-1:page<=0)return;
   const sheet=sheets[forward?page:page-1];
   turn={sheet,from:sheet.current,to:forward?1:0,start:performance.now(),duration:1200};
@@ -130,10 +136,10 @@ const observer=new ResizeObserver(()=>{
   camera.aspect=width/height;
   camera.position.set(.43,0,Math.max(2.45,.75/(camera.aspect*Math.tan(Math.PI/9))));
   camera.lookAt(.43,0,0);camera.updateProjectionMatrix();
-});observer.observe(stage);updateStatus();prev.disabled=next.disabled=false;
+});scope.add(()=>observer.disconnect());observer.observe(stage);updateStatus();prev.disabled=next.disabled=false;
 let previous=performance.now();
 renderer.setAnimationLoop(now=>{
-  const dt=Math.min((now-previous)/1000,.1);previous=now;
+  const dt=Math.max(0,Math.min((now-previous)/1000,.1));previous=now;
   if(turn){
     const t=clamp((now-turn.start)/turn.duration),eased=(1-Math.cos((1-(1-t)**.8)*Math.PI))/2;
     turn.sheet.current=turn.from+(turn.to-turn.from)*eased;
@@ -152,12 +158,10 @@ renderer.setAnimationLoop(now=>{
   });
   renderer.render(scene,camera);
 });
-return {
-  page:()=>page,
-  dispose(){
-    controller.abort();observer.disconnect();renderer.setAnimationLoop(null);
-    prev.onclick=next.onclick=null;
-    for(const sheet of sheets){sheet.front.dispose();sheet.mesh.material.dispose();sheet.mesh.customDepthMaterial.dispose();}
-    geometry.dispose();blank.dispose();light.shadow.dispose();renderer.dispose();canvas.remove();
-  }
-};
+const nextHandler=next.onclick,prevHandler=prev.onclick;
+scope.add(()=>{if(next.onclick===nextHandler)next.onclick=null;if(prev.onclick===prevHandler)prev.onclick=null;});
+options.debug?.({sheets,renderer,begin,state:()=>({page,turn,drag})});
+scope.assertActive();
+return {page:()=>page,next:()=>begin(true),previous:()=>begin(false),dispose:()=>scope.dispose()};
+}catch(error){scope.dispose();throw error;}
+}

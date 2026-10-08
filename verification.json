@@ -1,17 +1,20 @@
 {
   "date": "2026-10-08",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "threeRevision": "162",
   "nodeVersion": "20.20.2",
   "automatedTests": {
-    "passed": 23,
-    "installedSkillTestsPassed": 18,
+    "passed": 27,
+    "installedSkillTestsPassed": 22,
     "failed": 0
   },
   "skillFrontmatterValidation": "passed",
   "lineEndingChecks": {
-    "mobileRuntimeSourceVariants": ["LF", "CRLF"],
-    "formattingAndIncompatibleTemplateDiagnostics": "passed",
+    "mobileRuntimeSourceVariants": [
+      "LF original modules",
+      "CRLF copied modules"
+    ],
+    "sourceInstrumentation": "removed; directly imports exported factories",
     "gitCheckoutRule": "text=auto eol=lf",
     "testHost": "Windows; Node.js 20.20.2"
   },
@@ -33,5 +36,20 @@
     "canvasCountAfterRepeatedSwitches": 1,
     "consoleShaderErrorsInFinalBuild": 0
   },
-  "limits": "CPU tests use actual templates with a mock renderer. Visual checks cover the listed browser environment. Original artwork, fine paper/ink noise, accelerated long press and automatic book-end replay are not included."
+  "limits": "CPU tests use actual templates with a mock renderer. Visual checks cover the listed browser environment. Original artwork, fine paper/ink noise, accelerated long press and automatic book-end replay are not included.",
+  "integrationChecks": {
+    "independentInjectedInstances": "passed",
+    "textureFailureAndAbortCleanup": "passed",
+    "serializedResponsiveLifecycle": "passed",
+    "childProcessApisDisabledInProcessSuite": "27 passed",
+    "typeDeclarations": "TypeScript 5.9.3 passed",
+    "vueExample": "SFC compiled; browser turn, props update, unmount/remount verified",
+    "reactExample": "compiled; browser StrictMode, turn, props update, unmount/remount verified",
+    "canvasCounts": {
+      "unmounted": 0,
+      "mounted": 1,
+      "remounted": 1
+    },
+    "factoryDemoShaderErrors": 0
+  }
 }

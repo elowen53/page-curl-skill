@@ -7,6 +7,8 @@ description: Build or repair responsive WebGL book page-turn effects using a tes
 
 Use the bundled implementation to reproduce desktop cylindrical curls and narrow-screen conical rolls. Keep the user's framework, content and destination. The template is an independent reconstruction inspired by Paper Mono; it includes original specimen artwork.
 
+These are instructions for the AI harness, not setup tasks for the end user. Implement, integrate and check the result yourself within the available environment. Prefer the exported factories over copying or rewriting their source.
+
 ## Generate a working baseline
 
 Resolve paths relative to this skill folder. Node.js 18+ is required; no npm install or network is needed.
@@ -30,7 +32,9 @@ Image paths resolve relative to the config file. Use an even count of at least t
 
 `mode` defaults to `auto`: desktop requires both width ≥768px and landscape orientation; all other viewports use mobile. This is the observed Paper Mono breakpoint, including wide portrait windows. `desktop` or `mobile` forces a model. `startSheet` is zero-based desktop spread depth; `startPage` overrides it with a zero-based artwork index. Switching modes preserves the artwork index, rounded down to its spread when entering desktop; entering mobile clamps the closed-book index to the last visible leaf. Each switch must dispose the old scene before mounting its replacement.
 
-For integration, start from `assets/page-curl.js` (desktop), `assets/mobile-curl.js` and `assets/cone-model.mjs` (mobile), and the generated HTML's responsive controller. These scripts are async mount function bodies, with Three.js and config supplied externally. Read [references/integration.md](references/integration.md) for porting and lifecycle, and [references/mobile-reverse.md](references/mobile-reverse.md) for the measured cone model. Preserve the user's design; specimen artwork is replaceable content.
+For integration, import `mountPageCurl` from `assets/responsive-controller.mjs`. Pass `THREE`, `stage`, `prev`, `next`, `status` and `config`; all DOM elements belong to the instance. Low-level `mountDesktop` and `mountMobile` exports are also available. No selector replacement or handwritten responsive controller is needed. Keep asset import paths together, including `assets/package.json` for Node ESM compatibility.
+
+Read [references/integration.md](references/integration.md) for the injection manifest, typed API, async cancellation and sandbox guidance. For Vue use [references/examples/PageCurl.vue](references/examples/PageCurl.vue); for React use [references/examples/PageCurl.jsx](references/examples/PageCurl.jsx). They cover prop changes, serialized remounts, unloading during texture loading and React StrictMode cleanup. Read [references/mobile-reverse.md](references/mobile-reverse.md) when adapting geometry. Preserve the user's design; specimen artwork is replaceable content.
 
 ## Stability invariants
 
@@ -45,7 +49,9 @@ For integration, start from `assets/page-curl.js` (desktop), `assets/mobile-curl
 
 ## Verify the result
 
-Run `npm test` from the repository containing this skill when its package metadata and generator tests are available. This runs the generator checks and bundled self-test directly. For a standalone installed skill, run `node scripts/self-test.mjs` to execute its temporal and shader-compatibility checks.
+Run `npm test` from the repository when its generator tests are available. If the harness prohibits child processes (`spawn EPERM`), run `node scripts/test-in-process.mjs` from the repository; it imports both suites in the current process. For an installed skill, run `node scripts/self-test.mjs`. These do not require npm installation or a bundler. Diagnose sandbox build restrictions separately from renderer failures.
+
+The self-test imports the same exported factories used by applications. Do not add source-string instrumentation to port it. Keep each mock renderer's clock local to its harness and use the same time origin for `performance.now()` and frame timestamps. Capture landing after the turn duration has completed, then compare a later idle frame.
 
 Also inspect actual WebGL rendering in an allowed browser preview. Automated simulation does not prove pixel correctness. Exercise both models with a white sheet forward/backward, a dark sheet, a committed drag, a short drag, rapid input and boundaries. Observe intermediate frames and compare settled frames after the pointer stops. Check cone taper and fanned edges at narrow width, repeat wide/narrow switches, and inspect wide portrait mode. Ensure exactly one canvas and no console shader errors. Report only checks actually performed and any browser/GPU limitations.
 

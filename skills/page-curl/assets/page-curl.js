@@ -1,25 +1,27 @@
-// 原创简化复现：根据 paper.design/mono 的公开前端观察重建桌面核心。
-// 本脚本由配套 HTML 内联执行。Three.js 通过 HTML 中的 import 提供。
-const stage = document.querySelector('#stage');
-const controller = new AbortController();
+import {prepareMount,loadTextures} from './runtime-support.mjs';
+/** @param {import('./api.js').MountOptions} options @returns {Promise<import('./api.js').PageCurlHandle>} */
+export async function mountDesktop(options){
+const {THREE,stage,prev,next,status,config,env,scope,controller}=prepareMount(options);
+const {createCanvas,ResizeObserver,performance,devicePixelRatio}=env;
+try{
 stage.dataset.mode='desktop';
-const status = document.querySelector('#status');
-const config = typeof pageCurlConfig === 'undefined' ? {pages:[],startSheet:3} : pageCurlConfig;
 const sheetCount = config.pages.length ? config.pages.length/2 : 6;
-document.querySelector('#prev').disabled=true;
-document.querySelector('#next').disabled=true;
+prev.disabled=true;
+next.disabled=true;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 20);
 camera.position.set(0, 0, 3.25);
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = scope.own(new THREE.WebGLRenderer({ antialias: true, alpha: true }));
+scope.add(()=>renderer.setAnimationLoop(null));
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 stage.append(renderer.domElement);
+scope.add(()=>renderer.domElement.remove());
 scene.add(new THREE.HemisphereLight(0xffffff, 0xa1aeaf, 1.5));
 const light = new THREE.DirectionalLight(0xffffff, 2);
 light.position.set(-3.5, 1.3, 4.1);
-light.castShadow = true;
+light.castShadow = true;scope.own(light.shadow);
 light.shadow.mapSize.set(2048, 2048);
 Object.assign(light.shadow.camera, { left: -2, right: 2, top: 2, bottom: -2, near: 1.5, far: 6.6 });
 light.shadow.camera.updateProjectionMatrix();
@@ -28,10 +30,10 @@ scene.add(light);
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.ShadowMaterial({ opacity: 0.15 }));
 ground.position.z = -0.025;
 ground.receiveShadow = true;
-scene.add(ground);
+scene.add(ground);scope.own(ground.geometry);scope.own(ground.material);
 
 // x = UV.x 保证书脊恒定位于 x=0。网格细分负责提供可弯曲的顶点。
-const geometry = new THREE.PlaneGeometry(1, 1.377, 64, 88);
+const geometry = scope.own(new THREE.PlaneGeometry(1, 1.377, 64, 88));
 const sheetShape = `
 uniform float progress;
 uniform float foldTilt;
@@ -64,7 +66,7 @@ vec3 paperPosition(vec2 coord) {
 `;
 
 function pageTexture(number) {
-  const c = document.createElement('canvas');
+  const c = createCanvas();
   c.width = 720; c.height = 992;
   const ctx = c.getContext('2d');
   const dark = number % 4 < 2;
@@ -78,17 +80,17 @@ function pageTexture(number) {
   ctx.fillStyle = dark ? '#e9e8df' : '#22221f'; ctx.font = '26px monospace';
   ['A plane becomes a page.', 'UV → curl → rotation', 'Normals follow the bend.', 'Light reveals the paper.', '', 'Drag to turn the page.'].forEach((text,i)=>ctx.fillText(text,35,650+i*42));
   ctx.font = '18px monospace'; ctx.fillText(`SIDE ${String(number+1).padStart(2,'0')}`,35,950);
-  const texture = new THREE.CanvasTexture(c); texture.colorSpace = THREE.SRGBColorSpace;
+  const texture = scope.own(new THREE.CanvasTexture(c)); texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
   return texture;
 }
 const sheets = [];
-let spread = config.startSheet, drag = null, turn = null, hovering = null;
-const loader = new THREE.TextureLoader();
-const importedTextures = await Promise.all(config.pages.map(url=>loader.loadAsync(url))).catch(error=>{
-  status.textContent='页面图片无法解码，请检查输入文件。';
+let spread = Math.floor(config.startPage/2), drag = null, turn = null, hovering = null;
+const importedTextures = await loadTextures(THREE,config.pages,scope).catch(error=>{
+  if(error.name!=='AbortError')status.textContent='页面图片无法解码，请检查输入文件。';
   throw error;
 });
+scope.assertActive();
 for(const texture of importedTextures){
   texture.colorSpace=THREE.SRGBColorSpace;
   texture.anisotropy=renderer.capabilities.getMaxAnisotropy();
@@ -123,6 +125,7 @@ for (let index=0; index<sheetCount; index++) {
       diffuseColor *= gl_FrontFacing ? front : back;
     `);
   };
+  scope.own(material);
   // 阴影使用同一变形公式，否则阴影仍会是平纸形状。
   const depth = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide});
   depth.onBeforeCompile = shader => {
@@ -130,6 +133,7 @@ for (let index=0; index<sheetCount; index++) {
     shader.vertexShader = sheetShape+shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>','vec3 transformed = paperPosition(uv);');
   };
+  scope.own(depth);
   const mesh = new THREE.Mesh(geometry,material);
   mesh.customDepthMaterial=depth; mesh.castShadow=true; mesh.receiveShadow=true;
   scene.add(mesh);
@@ -137,7 +141,7 @@ for (let index=0; index<sheetCount; index++) {
 }
 function updateStatus() { status.textContent=`${spread} / ${sheets.length} 张`; }
 function startTurn(forward) {
-  if(turn || drag) return;
+  if(scope.disposed || turn || drag) return;
   const index=forward?spread:spread-1;
   if(index<0 || index>=sheets.length) return;
   const sheet=sheets[index]; sheet.uniforms.turnDirection.value=forward?1:-1;
@@ -145,8 +149,8 @@ function startTurn(forward) {
   turn={sheet,from:sheet.current,to:forward?1:0,start:performance.now(),duration:850};
   spread+=forward?1:-1; updateStatus();
 }
-document.querySelector('#next').onclick=()=>startTurn(true);
-document.querySelector('#prev').onclick=()=>startTurn(false);
+next.onclick=()=>startTurn(true);
+prev.onclick=()=>startTurn(false);
 const canvas=renderer.domElement;
 canvas.addEventListener('pointerdown',event=>{
   if(turn || event.button!==0) return;
@@ -184,13 +188,13 @@ const observer=new ResizeObserver(()=>{
   renderer.setSize(width,height); camera.aspect=width/height;
   camera.position.z=Math.max(2.5,1.2/(camera.aspect*Math.tan(Math.PI/9)));
   camera.updateProjectionMatrix();
-});observer.observe(stage);
+});scope.add(()=>observer.disconnect());observer.observe(stage);
 updateStatus();
-document.querySelector('#prev').disabled=false;
-document.querySelector('#next').disabled=false;
+prev.disabled=false;
+next.disabled=false;
 let previous=performance.now();
 renderer.setAnimationLoop(now=>{
-  const dt=Math.min((now-previous)/1000,.1); previous=now;
+  const dt=Math.max(0,Math.min((now-previous)/1000,.1)); previous=now;
   if(turn){
     const t=THREE.MathUtils.clamp((now-turn.start)/turn.duration,0,1);
     turn.sheet.current=THREE.MathUtils.lerp(turn.from,turn.to,(1-Math.cos(t*Math.PI))/2);
@@ -214,9 +218,10 @@ renderer.setAnimationLoop(now=>{
   }
   renderer.render(scene,camera);
 });
-function dispose(){
-  controller.abort();observer.disconnect();renderer.setAnimationLoop(null);
-  document.querySelector('#prev').onclick=document.querySelector('#next').onclick=null;
-  for(const sheet of sheets){sheet.mesh.material.map.dispose();sheet.uniforms.backPage.value.dispose();sheet.mesh.material.dispose();sheet.mesh.customDepthMaterial.dispose();}
-  geometry.dispose();ground.geometry.dispose();ground.material.dispose();light.shadow.dispose();renderer.dispose();canvas.remove();
+const nextHandler=next.onclick,prevHandler=prev.onclick;
+scope.add(()=>{if(next.onclick===nextHandler)next.onclick=null;if(prev.onclick===prevHandler)prev.onclick=null;});
+options.debug?.({sheets,renderer,startTurn,state:()=>({spread,drag,turn,hovering})});
+scope.assertActive();
+return {page:()=>spread*2,next:()=>startTurn(true),previous:()=>startTurn(false),dispose:()=>scope.dispose()};
+}catch(error){scope.dispose();throw error;}
 }

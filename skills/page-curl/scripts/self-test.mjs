@@ -1,28 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
 import * as ActualThree from '../assets/three.module.min.js';
 import {createConeModel,wrapCone,clamp,coneShader,ASPECT} from '../assets/cone-model.mjs';
-const source=await readFile(new URL('../assets/page-curl.js',import.meta.url),'utf8');
-const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+import {mountDesktop} from '../assets/page-curl.js';
+import {mountMobile} from '../assets/mobile-curl.js';
+import {mountPageCurl} from '../assets/responsive-controller.mjs';
+import {readFile,writeFile,mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join,dirname,resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
 async function harness(){
   let time=0;
   const listeners=new Map();
   const context=new Proxy({}, {get:(o,k)=>o[k]??(()=>{}),set:(o,k,v)=>(o[k]=v,true)});
-  const canvas={getContext:()=>context,addEventListener:(name,fn)=>listeners.set(name,fn),
+  const canvas={style:{},remove(){},getContext:()=>context,addEventListener:(name,fn)=>listeners.set(name,fn),
     setPointerCapture(){},releasePointerCapture(){},getBoundingClientRect:()=>({left:0,top:0,width:1000,height:600})};
   const controls=Object.fromEntries(['#status','#prev','#next'].map(key=>[key,{}]));
   controls['#stage']={dataset:{},append(){},getBoundingClientRect:()=>({width:1000,height:600})};
   class Renderer{
     domElement=canvas; shadowMap={}; capabilities={getMaxAnisotropy:()=>1};
-    setPixelRatio(){} setSize(){} render(){} setAnimationLoop(fn){this.loop=fn;}
+    setPixelRatio(){} setSize(){} render(){} dispose(){} setAnimationLoop(fn){this.loop=fn;}
   }
-  const document={querySelector:key=>controls[key],createElement:()=>({...canvas})};
   const THREE={...ActualThree,WebGLRenderer:Renderer};
-  const runtime=await new AsyncFunction('THREE','document','ResizeObserver','performance','devicePixelRatio','pageCurlConfig',
-    source+'\nreturn {sheets,startTurn,state:()=>({spread,drag,turn,hovering}),renderer};')(
-      THREE,document,class{constructor(fn){this.fn=fn;}observe(){this.fn();}}, {now:()=>time},1,{pages:[],startSheet:3});
-  return {...runtime,canvas,controls,
+  let runtime;
+  const handle=await mountDesktop({THREE,stage:controls['#stage'],prev:controls['#prev'],next:controls['#next'],status:controls['#status'],config:{pages:[],startSheet:3},
+    environment:{createCanvas:()=>({...canvas}),ResizeObserver:class{constructor(fn){this.fn=fn;}observe(){this.fn();}disconnect(){}},performance:{now:()=>time},devicePixelRatio:1,AbortController},debug:value=>runtime=value});
+  return {...runtime,...handle,canvas,controls,
     tick(now){time=now;runtime.renderer.loop(now);},
     pointer(type,x,y=300){listeners.get(type)?.({type,button:0,clientX:x,clientY:y,pointerId:1});}};
 }
@@ -136,22 +139,7 @@ test('cone frames remain finite through all page counts, rollback and closing',(
   }
 });
 
-const mobileSource=await readFile(new URL('../assets/mobile-curl.js',import.meta.url),'utf8');
-function instrumentMobile(input){
-  const normalized=input.replace(/\r\n?/g,'\n');
-  const anchor=/(return\s*\{\s*)(page\s*:\s*\(\s*\)\s*=>\s*page\s*,)/g;
-  if([...normalized.matchAll(anchor)].length!==1){
-    throw new Error('Mobile self-test instrumentation: expected one returned page getter; check template compatibility.');
-  }
-  return normalized.replace(anchor,(_,opening,getter)=>`${opening}sheets,renderer,begin,state:()=>({page,turn,drag}),\n  ${getter}`);
-}
-test('mobile instrumentation accepts formatting changes and reports an incompatible template clearly',()=>{
-  const spaced=mobileSource.replace(/page:\(\)=>page,/,'page : () => page,');
-  assert(instrumentMobile(spaced).includes('sheets,renderer,begin'));
-  assert.throws(()=>instrumentMobile('return {};'),/Mobile self-test instrumentation/);
-  assert.throws(()=>instrumentMobile(mobileSource+'\nreturn {page:()=>page,};'),/expected one/);
-});
-async function mobileHarness(startPage=6,input=mobileSource){
+async function mobileHarness(startPage=6,factory=mountMobile){
   let time=0,removed=0,disconnected=0;
   const listeners=new Map();
   const context=new Proxy({}, {get:(o,k)=>o[k]??(()=>{}),set:(o,k,v)=>(o[k]=v,true)});
@@ -161,19 +149,14 @@ async function mobileHarness(startPage=6,input=mobileSource){
   controls['#stage']={dataset:{},append(){},getBoundingClientRect:()=>({width:696,height:765})};
   class Renderer{domElement=canvas;shadowMap={};capabilities={getMaxAnisotropy:()=>1};
     setPixelRatio(){}setSize(){}render(){}setAnimationLoop(fn){this.loop=fn;}dispose(){this.disposed=true;}}
-  const document={querySelector:key=>controls[key],createElement:()=>({...canvas})};
-  const instrumented=instrumentMobile(input);
-  const runtime=await new AsyncFunction('THREE','document','ResizeObserver','performance','devicePixelRatio','pageCurlConfig','createConeModel','clamp','coneShader',instrumented)(
-    {...ActualThree,WebGLRenderer:Renderer},document,class{constructor(fn){this.fn=fn;}observe(){this.fn();}disconnect(){disconnected++;}},
-    {now:()=>time},1,{pages:[],startSheet:3,startPage},createConeModel,clamp,coneShader);
-  return {...runtime,controls,tick(now){time=now;runtime.renderer.loop(now);},cleanup:()=>({removed,disconnected}),
+  let runtime;
+  const handle=await factory({THREE:{...ActualThree,WebGLRenderer:Renderer},stage:controls['#stage'],prev:controls['#prev'],next:controls['#next'],status:controls['#status'],config:{pages:[],startSheet:3,startPage},
+    environment:{createCanvas:()=>({...canvas}),ResizeObserver:class{constructor(fn){this.fn=fn;}observe(){this.fn();}disconnect(){disconnected++;}},performance:{now:()=>time},devicePixelRatio:1,AbortController},debug:value=>runtime=value});
+  return {...runtime,...handle,controls,tick(now){time=now;runtime.renderer.loop(now);},cleanup:()=>({removed,disconnected}),
     pointer(type,x,y=380){listeners.get(type)?.({type,button:0,clientX:x,clientY:y,pointerId:1});}};
 }
-// Exercise the actual runtime with both line endings, independently of Git settings.
-for(const [ending,newline] of [['LF','\n'],['CRLF','\r\n']]){
-const input=mobileSource.replace(/\r\n?/g,'\n').replace(/\n/g,newline);
-test(`mobile shaders and stable front/back maps (${ending})`,async()=>{
-  const h=await mobileHarness(6,input);const blank=h.sheets[0].uniforms.backPage.value;
+test('mobile shaders and stable front/back maps',async()=>{
+  const h=await mobileHarness(6);const blank=h.sheets[0].uniforms.backPage.value;
   for(const sheet of h.sheets){
     const shader={...ActualThree.ShaderLib.standard,uniforms:{}};sheet.mesh.material.onBeforeCompile(shader);
     const depth={...ActualThree.ShaderLib.depth,uniforms:{}};sheet.mesh.customDepthMaterial.onBeforeCompile(depth);
@@ -187,18 +170,114 @@ test(`mobile shaders and stable front/back maps (${ending})`,async()=>{
   assert.deepEqual(h.sheets.map(s=>s.uniforms.cone.value.toArray()),landed);
   h.begin(false);h.tick(3600);assert.equal(h.page(),6);assert.equal(sheet.current,0);
 });
-test(`mobile drag commit, rebound and cancellation (${ending})`,async()=>{
-  const h=await mobileHarness(6,input);h.pointer('pointerdown',600);h.pointer('pointermove',300);h.tick(100);h.pointer('pointerup',300);h.tick(1600);
+test('mobile drag commit, rebound and cancellation',async()=>{
+  const h=await mobileHarness(6);h.pointer('pointerdown',600);h.pointer('pointermove',300);h.tick(100);h.pointer('pointerup',300);h.tick(1600);
   assert.equal(h.page(),7);assert.equal(h.sheets[6].current,1);
   h.pointer('pointerdown',600);h.pointer('pointermove',580);h.tick(1700);h.pointer('pointerup',580);h.tick(3100);
   assert.equal(h.page(),7);assert.equal(h.sheets[7].current,0);
   h.pointer('pointerdown',600);h.pointer('pointermove',300);h.tick(3200);h.pointer('pointercancel',300);h.tick(4600);
   assert.equal(h.page(),7);assert.equal(h.sheets[7].current,0);
 });
-test(`mobile boundaries and responsive teardown (${ending})`,async()=>{
-  const h=await mobileHarness(0,input);h.begin(false);assert.equal(h.page(),0);
+test('mobile boundaries and responsive teardown',async()=>{
+  const h=await mobileHarness(0);h.begin(false);assert.equal(h.page(),0);
   for(let i=0;i<15;i++){h.begin(true);h.tick((i+1)*1500);}assert.equal(h.page(),11);
   h.dispose();assert.equal(h.renderer.loop,null);assert(h.renderer.disposed);
   assert.deepEqual(h.cleanup(),{removed:1,disconnected:1});assert.equal(h.controls['#next'].onclick,null);
 });
+
+test('CRLF copies import directly and retain mobile shader, turn, drag and cleanup behavior',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'page-curl-crlf-'));
+  try{
+    for(const file of ['mobile-curl.js','runtime-support.mjs','cone-model.mjs','package.json']){
+      const source=await readFile(new URL('../assets/'+file,import.meta.url),'utf8');
+      await writeFile(join(root,file),source.replace(/\r\n?/g,'\n').replace(/\n/g,'\r\n'));
+    }
+    const {mountMobile:factory}=await import(pathToFileURL(join(root,'mobile-curl.js')).href);
+    const h=await mobileHarness(6,factory),sheet=h.sheets[6];
+    const shader={...ActualThree.ShaderLib.standard,uniforms:{}};sheet.mesh.material.onBeforeCompile(shader);
+    const depth={...ActualThree.ShaderLib.depth,uniforms:{}};sheet.mesh.customDepthMaterial.onBeforeCompile(depth);
+    assert.equal(shader.uniforms.cone,depth.uniforms.cone);
+    h.next();h.tick(1200);assert.equal(h.page(),7);assert.equal(sheet.current,1);
+    h.previous();h.tick(2400);assert.equal(h.page(),6);
+    h.pointer('pointerdown',600);h.pointer('pointermove',300);h.tick(2500);h.pointer('pointerup',300);h.tick(4000);assert.equal(h.page(),7);
+    h.pointer('pointerdown',600);h.pointer('pointermove',580);h.tick(4100);h.pointer('pointerup',580);h.tick(5500);assert.equal(h.page(),7);
+    h.dispose();h.dispose();assert.deepEqual(h.cleanup(),{removed:1,disconnected:1});
+  }finally{
+    assert.equal(dirname(resolve(root)),resolve(tmpdir()));await rm(root,{recursive:true,force:true});
+  }
+});
+
+function fixture(TextureLoader=ActualThree.TextureLoader){
+  let now=0,canvases=0,disconnected=0;
+  const renderers=[],mediaListeners=new Set();
+  const media={matches:true,addEventListener:(type,fn)=>mediaListeners.add(fn),removeEventListener:(type,fn)=>mediaListeners.delete(fn)};
+  const context=new Proxy({}, {get:(o,k)=>o[k]??(()=>{}),set:(o,k,v)=>(o[k]=v,true)});
+  const createCanvas=()=>({style:{},getContext:()=>context,addEventListener(){},remove:()=>canvases--,
+    setPointerCapture(){},releasePointerCapture(){},getBoundingClientRect:()=>({left:0,top:0,width:1000,height:600})});
+  const stage={dataset:{},ownerDocument:{querySelector(){throw new Error('Global selectors forbidden');}},append(){canvases++;},getBoundingClientRect:()=>({width:1000,height:600})};
+  class Renderer{domElement=createCanvas();shadowMap={};capabilities={getMaxAnisotropy:()=>1};
+    constructor(){renderers.push(this);}setPixelRatio(){}setSize(){}render(){}setAnimationLoop(fn){this.loop=fn;}dispose(){this.disposed=true;}}
+  const options={THREE:{...ActualThree,WebGLRenderer:Renderer,TextureLoader},stage,prev:{},next:{},status:{},config:{startPage:6},
+    environment:{createCanvas,ResizeObserver:class{constructor(fn){this.fn=fn;}observe(){this.fn();}disconnect(){disconnected++;}},performance:{now:()=>now},devicePixelRatio:1,AbortController,matchMedia:()=>media}};
+  return {options,renderers,mediaListeners,stats:()=>({canvases,disconnected}),tick(time){now=time;for(const renderer of renderers)renderer.loop?.(time);},
+    change(matches){media.matches=matches;for(const listener of mediaListeners)listener();}};
 }
+test('injected controls support independent books without document selectors or shared clocks',async()=>{
+  const a=fixture(),b=fixture(),first=await mountDesktop(a.options),second=await mountMobile(b.options);
+  assert.equal(a.options.next.disabled,false);assert.equal(b.options.next.disabled,false);
+  a.options.next.onclick();a.tick(850);assert.equal(first.page(),8);assert.equal(second.page(),6);
+  b.options.next.onclick();b.tick(1200);assert.equal(second.page(),7);
+  first.dispose();first.dispose();assert.equal(a.stats().canvases,0);assert.equal(b.stats().canvases,1);
+  second.previous();b.tick(2400);assert.equal(second.page(),6);second.dispose();
+  assert.equal(b.stats().canvases,0);
+});
+test('missing injected elements produce a clear error before creating a renderer',async()=>{
+  const f=fixture();delete f.options.next;
+  await assert.rejects(mountDesktop(f.options),/Missing page curl element: next/);
+  assert.equal(f.renderers.length,0);
+});
+test('both factories release allocated resources on texture failure, including late textures',async()=>{
+  for(const factory of [mountDesktop,mountMobile]){
+    let late,disposed=0;
+    const texture=new ActualThree.Texture();texture.addEventListener('dispose',()=>disposed++);
+    class Loader{loadAsync(url){return url==='fail'?Promise.reject(new Error('decode failed')):new Promise(resolve=>late=resolve);}}
+    const f=fixture(Loader);f.options.config={pages:['late','fail'],startPage:0};
+    await assert.rejects(factory(f.options),/decode failed/);
+    assert.equal(f.stats().canvases,0);assert(f.renderers[0].disposed);
+    late(texture);await Promise.resolve();await Promise.resolve();assert.equal(disposed,1);
+  }
+});
+test('abort while a factory is loading removes the canvas without waiting for image decoding',async()=>{
+  for(const factory of [mountDesktop,mountMobile]){
+    const pendingTextures=[];class Loader{loadAsync(){return new Promise(resolve=>pendingTextures.push(resolve));}}
+    const f=fixture(Loader),cancel=new AbortController();f.options.signal=cancel.signal;f.options.config={pages:['a','b'],startPage:0};
+    const pending=factory(f.options);const assertion=assert.rejects(pending,{name:'AbortError'});
+    cancel.abort();await assertion;assert.equal(f.stats().canvases,0);
+    let disposed=0;
+    for(const complete of pendingTextures){const texture=new ActualThree.Texture();texture.addEventListener('dispose',()=>disposed++);complete(texture);}
+    await Promise.resolve();await Promise.resolve();assert.equal(disposed,2);
+  }
+});
+test('responsive controller preserves page, serializes switches and removes its media listener',async()=>{
+  const f=fixture(),handle=await mountPageCurl(f.options);
+  assert.equal(handle.mode(),'desktop');handle.next();f.tick(850);assert.equal(handle.page(),8);
+  f.change(false);await handle.ready();assert.equal(handle.mode(),'mobile');assert.equal(handle.page(),8);
+  f.change(true);f.change(false);f.change(true);await handle.ready();assert.equal(handle.mode(),'desktop');
+  assert.equal(f.stats().canvases,1);assert.equal(handle.page(),8);
+  handle.dispose();handle.dispose();assert.equal(f.stats().canvases,0);assert.equal(f.mediaListeners.size,0);
+  f.change(false);await handle.ready();assert.equal(f.stats().canvases,0);
+});
+test('dispose during an asynchronous mode switch cannot resurrect a late instance',async()=>{
+  const f=fixture();let complete,disposed=0;
+  const factories={desktop:async()=>({page:()=>6,next(){},previous(){},dispose(){disposed++;}}),
+    mobile:async()=>new Promise(resolve=>complete=()=>resolve({page:()=>6,next(){},previous(){},dispose(){disposed++;}}))};
+  const handle=await mountPageCurl({...f.options,factories});f.change(false);await Promise.resolve();await Promise.resolve();
+  handle.dispose();complete();await handle.ready();assert.equal(disposed,2);assert.equal(handle.mode(),null);assert.equal(f.mediaListeners.size,0);
+});
+test('external abort handles a pending initial mount as in React StrictMode cleanup',async()=>{
+  const f=fixture(),cancel=new AbortController();let complete,disposed=0;
+  const create=async()=>new Promise(resolve=>complete=()=>resolve({page:()=>6,next(){},previous(){},dispose(){disposed++;}}));
+  const pending=mountPageCurl({...f.options,signal:cancel.signal,factories:{desktop:create,mobile:create}});
+  const assertion=assert.rejects(pending,{name:'AbortError'});await Promise.resolve();await Promise.resolve();cancel.abort();complete();await assertion;
+  assert.equal(disposed,1);assert.equal(f.mediaListeners.size,0);
+});
