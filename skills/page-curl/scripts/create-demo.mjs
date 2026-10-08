@@ -30,7 +30,7 @@ export async function buildDemo({ output, config } = {}) {
     pages.push(`data:${mime};base64,${bytes.toString('base64')}`);
   }
   const [shell,code,vendor,mobile,cone] = await Promise.all(['demo-shell.html','page-curl.js','three.module.min.js','mobile-curl.js','cone-model.mjs'].map(name=>readFile(resolve(root,'assets',name),'utf8')));
-  const title = settings.title ?? '纸张翻页 · 原理复现';
+  const title = settings.title ?? '杂志翻页';
   const escapedTitle=title.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const json = JSON.stringify({pages,startSheet,startPage,mode}).replace(/</g,'\\u003c');
   const runtime=`import {createConeModel,clamp,coneShader} from 'data:text/javascript;base64,${Buffer.from(cone).toString('base64')}';
