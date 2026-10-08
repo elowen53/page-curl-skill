@@ -1,16 +1,31 @@
 {
   "date": "2026-10-08",
+  "version": "1.1.0",
   "threeRevision": "162",
   "nodeVersion": "20.20.2",
-  "automatedTests": { "passed": 12, "failed": 0 },
+  "automatedTests": {
+    "passed": 19,
+    "installedSkillTestsPassed": 14,
+    "failed": 0
+  },
   "skillFrontmatterValidation": "passed",
   "visualChecks": {
     "environment": "Windows Codex in-app browser",
-    "lightPageForwardIntermediateFrame": "passed",
-    "lightPageBackwardIntermediateFrame": "passed",
-    "settledFramesIdenticalAfterIdle": true,
-    "customJpegTexturesDecodedAndTurned": "passed",
-    "consoleShaderErrors": 0
+    "desktopLightPages": "passed in previous baseline and responsive remount",
+    "mobileLightForwardAndBackward": "passed",
+    "mobileWhiteBackRevealsDarkNextPage": "passed",
+    "mobileCommittedDrag": "passed",
+    "mobileShortDragRebound": "passed",
+    "mobileIdleScreenshotsByteIdentical": true,
+    "viewports": [
+      "390x844 mobile",
+      "696x920 mobile",
+      "800x1100 mobile",
+      "1000x700 desktop"
+    ],
+    "switchDuringTurn": "preserved target page",
+    "canvasCountAfterRepeatedSwitches": 1,
+    "consoleShaderErrorsInFinalBuild": 0
   },
-  "limits": "Temporal tests use the actual template with a mock renderer. Visual checks cover this browser/GPU environment and do not guarantee all devices. Dedicated mobile conical deformation is outside this skill."
+  "limits": "CPU tests use actual templates with a mock renderer. Visual checks cover the listed browser environment. Original artwork, fine paper/ink noise, accelerated long press and automatic book-end replay are not included."
 }

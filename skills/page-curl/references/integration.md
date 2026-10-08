@@ -1,6 +1,6 @@
 # Integration
 
-The baseline uses a fixed frontal PerspectiveCamera, a shared 64×88 segmented plane, independent sheet uniforms and two textures per sheet. `paperPosition(uv)` performs a tilted cylindrical curl followed by a rotation about the spine. The mesh and custom depth material use that identical function. The Three.js revision is pinned because `onBeforeCompile` replaces internal shader chunks.
+Both models use a fixed frontal PerspectiveCamera, a shared 64×88 segmented plane and independent sheet uniforms. Desktop `paperPosition(uv)` performs a tilted cylindrical curl followed by spine rotation, with two artwork textures per sheet. Mobile combines pile bulge, a tilted tail bend, cone wrapping and spine rotation, with one front image per leaf and a shared blank back. Surface and custom depth materials use identical deformation. Three.js is pinned because `onBeforeCompile` replaces internal chunks.
 
 The fragment normal is made camera-facing in view space (`normal.z`). This is a deliberate convention for this frontal magazine presentation. If adding camera orbit, arbitrary paper orientations, normal maps or tangents, reassess the normal and shading model and validate both faces from every camera angle. This template does not claim to be general physically accurate double-sided cloth shading.
 
@@ -20,4 +20,6 @@ Set image textures to SRGBColorSpace. Front and back texture ordering must follo
 
 The generator produces offline standalone HTML using a data URL for the pinned Three.js module. It requires a modern browser with WebGL. Hosted environments with a restrictive Content Security Policy may block inline scripts or data-module imports: extract scripts into local files and explicitly permit the chosen same-origin scripts. Do not weaken unrelated application CSP settings.
 
-The baseline is a desktop cylindrical curl that also accepts pointer gestures on narrow viewports. It is not a reproduction of Paper Mono's dedicated mobile cone model, long-press rapid flipping, baked FBM wrinkle field or fine ink/paper material.
+The generated controller selects desktop with `(min-width: 768px) and (orientation: landscape)`. Mode switches are serialized; read the old instance's logical page before `dispose()`. Mobile clamps to the last front image; desktop rounds to the containing spread. Port this controller into the framework's lifecycle rather than running both renderers behind CSS visibility. Mobile's mount returns `{page,dispose}` directly; desktop's function body defines `dispose`, and the generator returns `{page:()=>spread*2,dispose}`.
+
+This implements both core deformation models. It does not include long-press rapid flipping, automatic book-end restart, baked FBM wrinkles or the original fine ink/paper material. Mobile intentionally stops on the last readable front; the cone math supports closing, and numerical tests cover that state.

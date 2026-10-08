@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import * as ActualThree from '../assets/three.module.min.js';
+import {createConeModel,wrapCone,clamp,coneShader,ASPECT} from '../assets/cone-model.mjs';
 const source=await readFile(new URL('../assets/page-curl.js',import.meta.url),'utf8');
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
 async function harness(){
@@ -11,7 +12,7 @@ async function harness(){
   const canvas={getContext:()=>context,addEventListener:(name,fn)=>listeners.set(name,fn),
     setPointerCapture(){},releasePointerCapture(){},getBoundingClientRect:()=>({left:0,top:0,width:1000,height:600})};
   const controls=Object.fromEntries(['#status','#prev','#next'].map(key=>[key,{}]));
-  controls['#stage']={append(){},getBoundingClientRect:()=>({width:1000,height:600})};
+  controls['#stage']={dataset:{},append(){},getBoundingClientRect:()=>({width:1000,height:600})};
   class Renderer{
     domElement=canvas; shadowMap={}; capabilities={getMaxAnisotropy:()=>1};
     setPixelRatio(){} setSize(){} render(){} setAnimationLoop(fn){this.loop=fn;}
@@ -96,4 +97,90 @@ test('each sheet has independent uniform ownership',async()=>{
   const h=await harness();
   assert.equal(new Set(h.sheets.map(s=>s.uniforms.progress)).size,6);
   assert.equal(new Set(h.sheets.map(s=>s.uniforms.backPage.value)).size,6);
+});
+
+test('cone cap is continuous and its outgoing tangent is smooth',()=>{
+  for(const slope of [0,-.03,-.1])for(const angle of [.5,1,2])for(const y of [-.6885,0,.6885]){
+    const radius=.2+(.6885-y)*slope;
+    const x=slope===0?radius*angle:radius*Math.tan(slope*angle)/slope;
+    const eps=1e-6,shape=[slope,.2,angle];
+    const a=wrapCone(x-eps,y,shape),b=wrapCone(x,y,shape),c=wrapCone(x+eps,y,shape);
+    for(let k=0;k<3;k++){
+      assert(Math.abs(a[k]-c[k])<3e-6,'cap cannot jump');
+      assert(Math.abs((b[k]-a[k])/eps-(c[k]-b[k])/eps)<.0001,'tangent cannot kink');
+    }
+  }
+});
+test('zero wrap remains flat and zero taper reduces to a cylinder',()=>{
+  for(const x of [0,.2,1])for(const y of [-.6885,0,.6885]){
+    const flat=wrapCone(x,y,[-.08,.18,0]);
+    flat.forEach((v,i)=>assert(Math.abs(v-[x,y,0][i])<1e-10));
+    const r=.2,wrapped=wrapCone(x,y,[0,r,6]);
+    const expected=[r*Math.sin(x/r),y,r*(1-Math.cos(x/r))];
+    wrapped.forEach((v,i)=>assert(Math.abs(v-expected[i])<1e-10));
+  }
+});
+test('cone frames remain finite through all page counts, rollback and closing',()=>{
+  for(const count of [1,2,12,26]){
+    const model=createConeModel(count);
+    for(let total=0;total<=count;total+=.05){
+      const state=Array.from({length:count},(_,i)=>clamp(total-i));
+      for(const grab of [{x:0,y:-1},{x:1,y:1}]){
+        for(const shape of model.frame(state,Array(count).fill(grab))){
+          const values=Object.values(shape).flat();assert(values.every(Number.isFinite));
+          assert(shape.tail[3]>0);assert(shape.cone[1]>0);
+          for(const x of [0,.1,1])for(const y of [-ASPECT/2,0,ASPECT/2])assert(wrapCone(x,y,shape.cone).every(Number.isFinite));
+        }
+      }
+    }
+  }
+});
+
+const mobileSource=await readFile(new URL('../assets/mobile-curl.js',import.meta.url),'utf8');
+async function mobileHarness(startPage=6){
+  let time=0,removed=0,disconnected=0;
+  const listeners=new Map();
+  const context=new Proxy({}, {get:(o,k)=>o[k]??(()=>{}),set:(o,k,v)=>(o[k]=v,true)});
+  const canvas={style:{},getContext:()=>context,remove:()=>removed++,addEventListener:(name,fn)=>listeners.set(name,fn),
+    setPointerCapture(){},releasePointerCapture(){},getBoundingClientRect:()=>({left:0,top:0,width:696,height:765})};
+  const controls=Object.fromEntries(['#status','#prev','#next'].map(key=>[key,{}]));
+  controls['#stage']={dataset:{},append(){},getBoundingClientRect:()=>({width:696,height:765})};
+  class Renderer{domElement=canvas;shadowMap={};capabilities={getMaxAnisotropy:()=>1};
+    setPixelRatio(){}setSize(){}render(){}setAnimationLoop(fn){this.loop=fn;}dispose(){this.disposed=true;}}
+  const document={querySelector:key=>controls[key],createElement:()=>({...canvas})};
+  const instrumented=mobileSource.replace('return {\n  page:()=>page,','return {\n  sheets,renderer,begin,state:()=>({page,turn,drag}),\n  page:()=>page,');
+  const runtime=await new AsyncFunction('THREE','document','ResizeObserver','performance','devicePixelRatio','pageCurlConfig','createConeModel','clamp','coneShader',instrumented)(
+    {...ActualThree,WebGLRenderer:Renderer},document,class{constructor(fn){this.fn=fn;}observe(){this.fn();}disconnect(){disconnected++;}},
+    {now:()=>time},1,{pages:[],startSheet:3,startPage},createConeModel,clamp,coneShader);
+  return {...runtime,controls,tick(now){time=now;runtime.renderer.loop(now);},cleanup:()=>({removed,disconnected}),
+    pointer(type,x,y=380){listeners.get(type)?.({type,button:0,clientX:x,clientY:y,pointerId:1});}};
+}
+test('mobile shaders use the same cone for surface and shadow with stable front/back maps',async()=>{
+  const h=await mobileHarness();const blank=h.sheets[0].uniforms.backPage.value;
+  for(const sheet of h.sheets){
+    const shader={...ActualThree.ShaderLib.standard,uniforms:{}};sheet.mesh.material.onBeforeCompile(shader);
+    const depth={...ActualThree.ShaderLib.depth,uniforms:{}};sheet.mesh.customDepthMaterial.onBeforeCompile(depth);
+    assert(shader.vertexShader.includes(coneShader));assert(depth.vertexShader.includes(coneShader));
+    assert.equal(shader.uniforms.cone,depth.uniforms.cone);assert.equal(sheet.uniforms.backPage.value,blank);
+    assert(!shader.vertexShader.includes('#include <begin_vertex>'));assert(!shader.fragmentShader.includes('#include <map_fragment>'));
+  }
+  const sheet=h.sheets[6],front=sheet.front;h.begin(true);h.begin(true);h.tick(600);h.tick(1200);
+  assert.equal(h.page(),7);assert.equal(sheet.current,1);assert.equal(sheet.front,front);assert.equal(sheet.uniforms.backPage.value,blank);
+  const landed=h.sheets.map(s=>s.uniforms.cone.value.toArray());h.tick(2400);
+  assert.deepEqual(h.sheets.map(s=>s.uniforms.cone.value.toArray()),landed);
+  h.begin(false);h.tick(3600);assert.equal(h.page(),6);assert.equal(sheet.current,0);
+});
+test('mobile drag commits once and short/cancelled gestures return to the original page',async()=>{
+  const h=await mobileHarness();h.pointer('pointerdown',600);h.pointer('pointermove',300);h.tick(100);h.pointer('pointerup',300);h.tick(1600);
+  assert.equal(h.page(),7);assert.equal(h.sheets[6].current,1);
+  h.pointer('pointerdown',600);h.pointer('pointermove',580);h.tick(1700);h.pointer('pointerup',580);h.tick(3100);
+  assert.equal(h.page(),7);assert.equal(h.sheets[7].current,0);
+  h.pointer('pointerdown',600);h.pointer('pointermove',300);h.tick(3200);h.pointer('pointercancel',300);h.tick(4600);
+  assert.equal(h.page(),7);assert.equal(h.sheets[7].current,0);
+});
+test('mobile boundaries and teardown support repeated responsive remounts',async()=>{
+  const h=await mobileHarness(0);h.begin(false);assert.equal(h.page(),0);
+  for(let i=0;i<15;i++){h.begin(true);h.tick((i+1)*1500);}assert.equal(h.page(),11);
+  h.dispose();assert.equal(h.renderer.loop,null);assert(h.renderer.disposed);
+  assert.deepEqual(h.cleanup(),{removed:1,disconnected:1});assert.equal(h.controls['#next'].onclick,null);
 });

@@ -29,11 +29,21 @@ test('local paired images are embedded relative to config and title is escaped',
  assert(!html.includes('<script>hello</script>'));
 }));
 test('invalid counts, boundaries and unknown settings fail before output',()=>workspace(async root=>{
- for(const settings of [{pages:['a.png']},{startSheet:7},{startSheet:.5},{title:42},{bad:true}]){
+ for(const settings of [{pages:['a.png']},{startSheet:7},{startSheet:.5},{startPage:13},{startPage:-1},{mode:'other'},{title:42},{bad:true}]){
    const config=join(root,'config.json');await writeFile(config,JSON.stringify(settings));
    await assert.rejects(buildDemo({output:join(root,'book.html'),config}));
  }
  await assert.rejects(readFile(join(root,'book.html')));
+}));
+test('auto and forced mobile modes include the cone renderer and exact responsive breakpoint',()=>workspace(async root=>{
+ for(const mode of ['auto','desktop','mobile']){
+   const config=join(root,'config.json');await writeFile(config,JSON.stringify({mode,startPage:5}));
+   const output=join(root,`${mode}.html`);await buildDemo({output,config});
+   const html=await readFile(output,'utf8');
+   assert(html.includes(`"mode":"${mode}"`));assert(html.includes('"startPage":5'));
+   assert(html.includes('(min-width: 768px) and (orientation: landscape)'));
+   assert(html.includes('async function mountMobile'));assert(html.includes('active.dispose()'));
+ }
 }));
 test('missing and corrupt image files fail without producing partial output',()=>workspace(async root=>{
  const config=join(root,'config.json'),output=join(root,'book.html');

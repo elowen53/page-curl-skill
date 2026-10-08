@@ -1,6 +1,8 @@
 // 原创简化复现：根据 paper.design/mono 的公开前端观察重建桌面核心。
 // 本脚本由配套 HTML 内联执行。Three.js 通过 HTML 中的 import 提供。
 const stage = document.querySelector('#stage');
+const controller = new AbortController();
+stage.dataset.mode='desktop';
 const status = document.querySelector('#status');
 const config = typeof pageCurlConfig === 'undefined' ? {pages:[],startSheet:3} : pageCurlConfig;
 const sheetCount = config.pages.length ? config.pages.length/2 : 6;
@@ -154,7 +156,7 @@ canvas.addEventListener('pointerdown',event=>{
   sheet.uniforms.turnDirection.value=forward?1:-1;
   drag={sheet,forward,x:event.clientX,base:sheet.current,target:sheet.current,width:rect.width,moved:false};
   canvas.setPointerCapture(event.pointerId);
-});
+},{signal:controller.signal});
 canvas.addEventListener('pointermove',event=>{
   if(turn)return;
   const rect=canvas.getBoundingClientRect();
@@ -164,8 +166,8 @@ canvas.addEventListener('pointermove',event=>{
   if(!drag)return;
   const dx=event.clientX-drag.x; drag.moved ||= Math.abs(dx)>5;
   drag.target=THREE.MathUtils.clamp(drag.base-dx/drag.width/.8,0,1);
-});
-canvas.addEventListener('pointerleave',()=>hovering=null);
+},{signal:controller.signal});
+canvas.addEventListener('pointerleave',()=>hovering=null,{signal:controller.signal});
 function release(event) {
   if(!drag)return;
   const d=drag; drag=null;
@@ -176,13 +178,13 @@ function release(event) {
   turn={sheet:d.sheet,from:d.sheet.current,to,start:performance.now(),duration:1000*Math.sqrt(Math.max(.05,Math.abs(to-d.sheet.current)))};
   canvas.releasePointerCapture(event.pointerId); updateStatus();
 }
-canvas.addEventListener('pointerup',release); canvas.addEventListener('pointercancel',release);
-new ResizeObserver(()=>{
+canvas.addEventListener('pointerup',release,{signal:controller.signal}); canvas.addEventListener('pointercancel',release,{signal:controller.signal});
+const observer=new ResizeObserver(()=>{
   const {width,height}=stage.getBoundingClientRect();
   renderer.setSize(width,height); camera.aspect=width/height;
   camera.position.z=Math.max(2.5,1.2/(camera.aspect*Math.tan(Math.PI/9)));
   camera.updateProjectionMatrix();
-}).observe(stage);
+});observer.observe(stage);
 updateStatus();
 document.querySelector('#prev').disabled=false;
 document.querySelector('#next').disabled=false;
@@ -212,3 +214,9 @@ renderer.setAnimationLoop(now=>{
   }
   renderer.render(scene,camera);
 });
+function dispose(){
+  controller.abort();observer.disconnect();renderer.setAnimationLoop(null);
+  document.querySelector('#prev').onclick=document.querySelector('#next').onclick=null;
+  for(const sheet of sheets){sheet.mesh.material.map.dispose();sheet.uniforms.backPage.value.dispose();sheet.mesh.material.dispose();sheet.mesh.customDepthMaterial.dispose();}
+  geometry.dispose();ground.geometry.dispose();ground.material.dispose();light.shadow.dispose();renderer.dispose();canvas.remove();
+}
