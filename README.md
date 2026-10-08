@@ -4,11 +4,11 @@
 
 基于 [Paper Mono](https://paper.design/mono) 的公开前端观察独立重建，使用 Three.js 与 GLSL。桌面呈现双页展开，窄屏呈现单页纸卷；支持点击、拖拽与回弹。
 
-[使用指南](skills/page-curl/SKILL.md) · [形变原理](skills/page-curl/references/mobile-reverse.md) · [集成说明](skills/page-curl/references/integration.md) · [验证记录](verification.json)
+[点击预览 ↗](https://elowen53.github.io/page-curl-skill/) · [使用指南](skills/page-curl/SKILL.md) · [形变原理](skills/page-curl/references/mobile-reverse.md) · [集成说明](skills/page-curl/references/integration.md)
 
 ## 开始
 
-下载仓库后，直接在浏览器中打开 [example.html](example.html)。也可用 Node.js 18+ 生成独立文件，无需安装依赖：
+打开[在线预览](https://elowen53.github.io/page-curl-skill/)即可体验翻页，缩窄窗口可查看单页卷绕。下载仓库后，也可在浏览器中打开 [example.html](example.html)，或用 Node.js 18+ 生成独立文件，无需安装依赖：
 
 ```sh
 node skills/page-curl/scripts/create-demo.mjs --output book.html
@@ -51,7 +51,7 @@ node skills/page-curl/scripts/create-demo.mjs --config book.json --output book.h
 npm test
 ```
 
-Three.js 固定为 0.162.0。自动测试覆盖几何接缝、交互状态与时间连续性；实际画面检查见[验证清单](skills/page-curl/references/verification.md)。
+Three.js 固定为 0.162.0。自动测试覆盖几何接缝、交互状态与时间连续性；实际画面检查见[验证清单](skills/page-curl/references/verification.md)和[验证记录](verification.json)。在线预览由 GitHub Pages 发布，主分支更新时自动生成并部署。
 
 当前范围为两种翻页模型的核心几何与基本交互。演示使用原创纸面；原站的细腻纸墨纹理、长按加速与书末自动重播未包含。
 
