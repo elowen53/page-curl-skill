@@ -137,7 +137,21 @@ test('cone frames remain finite through all page counts, rollback and closing',(
 });
 
 const mobileSource=await readFile(new URL('../assets/mobile-curl.js',import.meta.url),'utf8');
-async function mobileHarness(startPage=6){
+function instrumentMobile(input){
+  const normalized=input.replace(/\r\n?/g,'\n');
+  const anchor=/(return\s*\{\s*)(page\s*:\s*\(\s*\)\s*=>\s*page\s*,)/g;
+  if([...normalized.matchAll(anchor)].length!==1){
+    throw new Error('Mobile self-test instrumentation: expected one returned page getter; check template compatibility.');
+  }
+  return normalized.replace(anchor,(_,opening,getter)=>`${opening}sheets,renderer,begin,state:()=>({page,turn,drag}),\n  ${getter}`);
+}
+test('mobile instrumentation accepts formatting changes and reports an incompatible template clearly',()=>{
+  const spaced=mobileSource.replace(/page:\(\)=>page,/,'page : () => page,');
+  assert(instrumentMobile(spaced).includes('sheets,renderer,begin'));
+  assert.throws(()=>instrumentMobile('return {};'),/Mobile self-test instrumentation/);
+  assert.throws(()=>instrumentMobile(mobileSource+'\nreturn {page:()=>page,};'),/expected one/);
+});
+async function mobileHarness(startPage=6,input=mobileSource){
   let time=0,removed=0,disconnected=0;
   const listeners=new Map();
   const context=new Proxy({}, {get:(o,k)=>o[k]??(()=>{}),set:(o,k,v)=>(o[k]=v,true)});
@@ -148,15 +162,18 @@ async function mobileHarness(startPage=6){
   class Renderer{domElement=canvas;shadowMap={};capabilities={getMaxAnisotropy:()=>1};
     setPixelRatio(){}setSize(){}render(){}setAnimationLoop(fn){this.loop=fn;}dispose(){this.disposed=true;}}
   const document={querySelector:key=>controls[key],createElement:()=>({...canvas})};
-  const instrumented=mobileSource.replace('return {\n  page:()=>page,','return {\n  sheets,renderer,begin,state:()=>({page,turn,drag}),\n  page:()=>page,');
+  const instrumented=instrumentMobile(input);
   const runtime=await new AsyncFunction('THREE','document','ResizeObserver','performance','devicePixelRatio','pageCurlConfig','createConeModel','clamp','coneShader',instrumented)(
     {...ActualThree,WebGLRenderer:Renderer},document,class{constructor(fn){this.fn=fn;}observe(){this.fn();}disconnect(){disconnected++;}},
     {now:()=>time},1,{pages:[],startSheet:3,startPage},createConeModel,clamp,coneShader);
   return {...runtime,controls,tick(now){time=now;runtime.renderer.loop(now);},cleanup:()=>({removed,disconnected}),
     pointer(type,x,y=380){listeners.get(type)?.({type,button:0,clientX:x,clientY:y,pointerId:1});}};
 }
-test('mobile shaders use the same cone for surface and shadow with stable front/back maps',async()=>{
-  const h=await mobileHarness();const blank=h.sheets[0].uniforms.backPage.value;
+// Exercise the actual runtime with both line endings, independently of Git settings.
+for(const [ending,newline] of [['LF','\n'],['CRLF','\r\n']]){
+const input=mobileSource.replace(/\r\n?/g,'\n').replace(/\n/g,newline);
+test(`mobile shaders and stable front/back maps (${ending})`,async()=>{
+  const h=await mobileHarness(6,input);const blank=h.sheets[0].uniforms.backPage.value;
   for(const sheet of h.sheets){
     const shader={...ActualThree.ShaderLib.standard,uniforms:{}};sheet.mesh.material.onBeforeCompile(shader);
     const depth={...ActualThree.ShaderLib.depth,uniforms:{}};sheet.mesh.customDepthMaterial.onBeforeCompile(depth);
@@ -170,17 +187,18 @@ test('mobile shaders use the same cone for surface and shadow with stable front/
   assert.deepEqual(h.sheets.map(s=>s.uniforms.cone.value.toArray()),landed);
   h.begin(false);h.tick(3600);assert.equal(h.page(),6);assert.equal(sheet.current,0);
 });
-test('mobile drag commits once and short/cancelled gestures return to the original page',async()=>{
-  const h=await mobileHarness();h.pointer('pointerdown',600);h.pointer('pointermove',300);h.tick(100);h.pointer('pointerup',300);h.tick(1600);
+test(`mobile drag commit, rebound and cancellation (${ending})`,async()=>{
+  const h=await mobileHarness(6,input);h.pointer('pointerdown',600);h.pointer('pointermove',300);h.tick(100);h.pointer('pointerup',300);h.tick(1600);
   assert.equal(h.page(),7);assert.equal(h.sheets[6].current,1);
   h.pointer('pointerdown',600);h.pointer('pointermove',580);h.tick(1700);h.pointer('pointerup',580);h.tick(3100);
   assert.equal(h.page(),7);assert.equal(h.sheets[7].current,0);
   h.pointer('pointerdown',600);h.pointer('pointermove',300);h.tick(3200);h.pointer('pointercancel',300);h.tick(4600);
   assert.equal(h.page(),7);assert.equal(h.sheets[7].current,0);
 });
-test('mobile boundaries and teardown support repeated responsive remounts',async()=>{
-  const h=await mobileHarness(0);h.begin(false);assert.equal(h.page(),0);
+test(`mobile boundaries and responsive teardown (${ending})`,async()=>{
+  const h=await mobileHarness(0,input);h.begin(false);assert.equal(h.page(),0);
   for(let i=0;i<15;i++){h.begin(true);h.tick((i+1)*1500);}assert.equal(h.page(),11);
   h.dispose();assert.equal(h.renderer.loop,null);assert(h.renderer.disposed);
   assert.deepEqual(h.cleanup(),{removed:1,disconnected:1});assert.equal(h.controls['#next'].onclick,null);
 });
+}

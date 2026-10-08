@@ -1,0 +1,7 @@
+# Keep text portable across Git checkout settings and AI coding harnesses.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.zip binary

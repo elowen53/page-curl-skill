@@ -1,14 +1,20 @@
 {
   "date": "2026-10-08",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "threeRevision": "162",
   "nodeVersion": "20.20.2",
   "automatedTests": {
-    "passed": 19,
-    "installedSkillTestsPassed": 14,
+    "passed": 23,
+    "installedSkillTestsPassed": 18,
     "failed": 0
   },
   "skillFrontmatterValidation": "passed",
+  "lineEndingChecks": {
+    "mobileRuntimeSourceVariants": ["LF", "CRLF"],
+    "formattingAndIncompatibleTemplateDiagnostics": "passed",
+    "gitCheckoutRule": "text=auto eol=lf",
+    "testHost": "Windows; Node.js 20.20.2"
+  },
   "visualChecks": {
     "environment": "Windows Codex in-app browser",
     "desktopLightPages": "passed in previous baseline and responsive remount",
