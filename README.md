@@ -4,7 +4,7 @@
 
 这是一份给 AI 编程工具使用的 skill。它提供翻页实现、交互规则和检查方法，帮助 AI 把效果接入你的项目。你只需描述想做什么，并提供页面内容。
 
-[点击预览 ↗](https://elowen53.github.io/page-curl-skill/) · [获取 skill](skills/page-curl) · [技能说明](skills/page-curl/SKILL.md)
+[点击预览 ↗](https://elowen53.github.io/page-curl-skill/) · [内容预览 ↗](https://elowen53.github.io/page-curl-skill/content.html) · [获取 skill](skills/page-curl)
 
 ## 怎么使用
 
@@ -29,14 +29,18 @@
 - **桌面双页**：左右展开，纸张弯曲后翻向另一侧。
 - **窄屏单页**：纸页绕书脊卷起，顶部露出层叠的页边。
 - **自然交互**：点击翻页、拖动翻页，小幅拖动后回弹。
-- **自己的内容**：用你的图片、杂志内页或作品展示替换示例纸面。
+- **自己的内容**：图片、HTML 排版、Markdown 文章、整份 PDF，以及 SVG 矢量插画，都可以成为杂志内页，也可以混合使用。
 - **融入现有设计**：让 AI 根据你的项目调整尺寸、背景、配色和控件。
 
 默认随窗口切换双页与单页，也可以要求 AI 固定使用其中一种。页面数量、阅读起点和交互方式，都可以直接在对话中提出。
 
 ## 交给 AI 的内容
 
-为了让制作更贴近你的想法，可以提供页面图片及顺序、希望加入效果的网站或项目，以及你喜欢的风格。暂时没有素材，也可以先让 AI 制作示例，再逐步替换。
+为了让制作更贴近你的想法，可以提供文章、网页排版、PDF、SVG 或页面图片及顺序，以及希望加入效果的项目和你喜欢的风格。暂时没有素材，也可以先让 AI 制作示例，再逐步替换。
+
+> 使用 page-curl skill，把这份 PDF 和 Markdown 文章做成可以翻页的杂志，封面使用我的 SVG 插画。保留阅读顺序，文章合理分页，电脑和手机都能查看。
+
+PDF 可以导入全部页面或指定页码；文章可以按内容分成多页。翻动中的纸面是清晰的静态快照，HTML 的按钮、链接和表单不会在纸面上交互，SVG 和 PDF 也会在显示时转为纹理。需要可选中文字或交互时，可以让 AI 同时保留原始阅读视图。
 
 这份 skill 同时包含实现模板和验证要求。AI 应检查白纸翻动、正反面显示、拖拽回弹、落地稳定性和窗口切换，并说明实际完成了哪些检查。
 
@@ -46,8 +50,8 @@
 
 基于 [Paper Mono](https://paper.design/mono) 的公开前端观察独立重建，使用 Three.js 与 GLSL，包含桌面和窄屏两种核心翻页模型。在线预览使用原创示例纸面；原站的细腻纸墨纹理、长按加速和书末自动重播未包含。
 
-供 AI 或需要了解实现细节的人阅读：[集成说明](skills/page-curl/references/integration.md) · [形变原理](skills/page-curl/references/mobile-reverse.md) · [验证清单](skills/page-curl/references/verification.md) · [验证记录](verification.json)
+供 AI 或需要了解实现细节的人阅读：[内容导入](skills/page-curl/references/content.md) · [集成说明](skills/page-curl/references/integration.md) · [形变原理](skills/page-curl/references/mobile-reverse.md) · [验证记录](verification.json)
 
 ## 许可
 
-[MIT](LICENSE) · [Three.js 许可](skills/page-curl/assets/THREE-LICENSE.txt)
+[MIT](LICENSE) · [Three.js 许可](skills/page-curl/assets/THREE-LICENSE.txt) · [内容渲染依赖与许可](skills/page-curl/assets/vendor/versions.json)

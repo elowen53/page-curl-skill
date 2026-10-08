@@ -1,0 +1,6 @@
+{
+  "marked": {"version":"18.1.0","source":"https://www.npmjs.com/package/marked","license":"MIT","file":"marked.mjs"},
+  "dompurify": {"version":"3.4.16","source":"https://www.npmjs.com/package/dompurify","license":"Apache-2.0 OR MPL-2.0","file":"purify.mjs"},
+  "html2canvas": {"version":"1.4.1","source":"https://www.npmjs.com/package/html2canvas","license":"MIT","file":"html2canvas.mjs"},
+  "pdfjs-dist": {"version":"6.4.299","source":"https://www.npmjs.com/package/pdfjs-dist","license":"Apache-2.0","files":["pdf.mjs","pdf.worker.mjs"]}
+}

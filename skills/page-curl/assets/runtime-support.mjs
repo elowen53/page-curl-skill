@@ -1,11 +1,13 @@
+import {validatePage,renderPage,preparePages} from './content-pages.mjs';
+export {preparePages};
 export function normalizeConfig(input={}) {
   if(!input || typeof input!=='object' || Array.isArray(input))throw new TypeError('Config must be an object');
   for(const key of Object.keys(input))if(!['title','mode','pages','startPage','startSheet'].includes(key))throw new Error(`Unknown config key: ${key}`);
   const mode=input.mode??'auto',pages=input.pages??[];
   if(!['auto','desktop','mobile'].includes(mode))throw new Error('mode must be auto, desktop or mobile');
   if(input.title!==undefined && typeof input.title!=='string')throw new TypeError('title must be a string');
-  if(!Array.isArray(pages) || (pages.length && (pages.length<2 || pages.length%2)))throw new Error('pages must contain an even number of at least two images');
-  if(pages.some(url=>typeof url!=='string'||!url))throw new Error('Each page must be a nonempty image URL');
+  if(!Array.isArray(pages) || (pages.length && (pages.length<2 || pages.length%2)))throw new Error('Final pages must contain an even number of at least two faces; expand documents with preparePages first');
+  pages.forEach(validatePage);
   const count=pages.length?pages.length/2:6,startSheet=input.startSheet??Math.min(3,count);
   const startPage=input.startPage??startSheet*2;
   if(!Number.isInteger(startSheet)||startSheet<0||startSheet>count)throw new Error(`startSheet must be an integer from 0 to ${count}`);
@@ -16,7 +18,7 @@ export function abortError(){return Object.assign(new Error('Page curl mount can
 export function resolveEnvironment(stage,environment={}) {
   const doc=stage.ownerDocument,view=doc?.defaultView??globalThis;
   const resolved={
-    createCanvas:()=>doc.createElement('canvas'),
+    document:doc,fetch:view.fetch?.bind(view),createCanvas:()=>doc.createElement('canvas'),
     performance:view.performance,devicePixelRatio:view.devicePixelRatio??1,
     ResizeObserver:view.ResizeObserver,AbortController:view.AbortController,
     matchMedia:view.matchMedia?.bind(view),...environment
@@ -50,12 +52,22 @@ export function prepareMount(options){
   scope.assertActive();
   return {THREE,stage,prev,next,status,config,env,scope,controller};
 }
-export async function loadTextures(THREE,urls,scope){
+export async function loadTextures(THREE,urls,scope,env){
   scope.assertActive();
   const loader=new THREE.TextureLoader();
-  const pending=Promise.all(urls.map(async url=>{
-    const texture=scope.own(await loader.loadAsync(url));scope.assertActive();return texture;
-  }));
+  const context={env,scope};
+  const pending=(async()=>{
+    if(urls.every(url=>typeof url==='string'))return Promise.all(urls.map(async url=>{
+      const texture=scope.own(await loader.loadAsync(url));scope.assertActive();return texture;
+    }));
+    // Document rasterization is serial to bound peak canvas memory and PDF work.
+    const textures=[];
+    for(const url of urls){
+      const texture=scope.own(typeof url==='string'?await loader.loadAsync(url):new THREE.CanvasTexture(await renderPage(url,context)));
+      scope.assertActive();textures.push(texture);
+    }
+    return textures;
+  })();
   const signal=scope.controller.signal;
   return new Promise((resolve,reject)=>{
     const cancel=()=>reject(abortError());signal.addEventListener('abort',cancel,{once:true});

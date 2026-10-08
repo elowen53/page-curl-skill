@@ -86,8 +86,8 @@ function pageTexture(number) {
 }
 const sheets = [];
 let spread = Math.floor(config.startPage/2), drag = null, turn = null, hovering = null;
-const importedTextures = await loadTextures(THREE,config.pages,scope).catch(error=>{
-  if(error.name!=='AbortError')status.textContent='页面图片无法解码，请检查输入文件。';
+const importedTextures = await loadTextures(THREE,config.pages,scope,env).catch(error=>{
+  if(error.name!=='AbortError')status.textContent='页面内容加载失败：'+error.message;
   throw error;
 });
 scope.assertActive();

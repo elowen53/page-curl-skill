@@ -1,16 +1,40 @@
 /** The supplied Three.js namespace; pin revision 162 unless shader checks are rerun. */
 export type ThreeNamespace = Record<string, any>;
+export interface ContentPage {
+  type: 'image' | 'html' | 'markdown' | 'svg' | 'pdf' | 'blank';
+  /** URL at runtime; local file path in the standalone generator. */
+  src?: string;
+  /** Inline HTML, Markdown or SVG. Use src or content, never both. */
+  content?: string;
+  /** HTML/Markdown page CSS, isolated from the host application. */
+  css?: string;
+  /** Resolve relative resources for inline HTML/Markdown; inferred for fetched sources. */
+  baseURL?: string;
+  /** PDF's one-based page number, or selected numbers in requested order. */
+  page?: number;
+  pages?: number[];
+  /** Logical page size; defaults to 800 x 1102, the curl's fixed aspect ratio. */
+  width?: number;
+  height?: number;
+  /** Pixel density, defaults to min(devicePixelRatio, 2); maximum 4 and 4096px. */
+  scale?: number;
+  background?: string;
+  fit?: 'contain' | 'cover';
+}
+export type PageSource = string | ContentPage;
 export interface PageCurlConfig {
   title?: string;
   mode?: 'auto' | 'desktop' | 'mobile';
-  /** Even-length image URL list; paired faces on desktop, separate fronts on mobile. */
-  pages?: string[];
+  /** Ordered sources. mountPageCurl expands documents and pads an odd count with blank paper. */
+  pages?: PageSource[];
   /** Zero-based artwork index, including the desktop closed-book index. */
   startPage?: number;
   /** Zero-based spread; startPage takes precedence. */
   startSheet?: number;
 }
 export interface Environment {
+  document?: Document;
+  fetch?: typeof fetch;
   createCanvas?: () => HTMLCanvasElement;
   performance?: Pick<Performance, 'now'>;
   devicePixelRatio?: number;

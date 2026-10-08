@@ -5,6 +5,7 @@ import {createConeModel,wrapCone,clamp,coneShader,ASPECT} from '../assets/cone-m
 import {mountDesktop} from '../assets/page-curl.js';
 import {mountMobile} from '../assets/mobile-curl.js';
 import {mountPageCurl} from '../assets/responsive-controller.mjs';
+import {preparePages,validatePage} from '../assets/content-pages.mjs';
 import {readFile,writeFile,mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,dirname,resolve} from 'node:path';
@@ -188,7 +189,7 @@ test('mobile boundaries and responsive teardown',async()=>{
 test('CRLF copies import directly and retain mobile shader, turn, drag and cleanup behavior',async()=>{
   const root=await mkdtemp(join(tmpdir(),'page-curl-crlf-'));
   try{
-    for(const file of ['mobile-curl.js','runtime-support.mjs','cone-model.mjs','package.json']){
+    for(const file of ['mobile-curl.js','runtime-support.mjs','content-pages.mjs','cone-model.mjs','package.json']){
       const source=await readFile(new URL('../assets/'+file,import.meta.url),'utf8');
       await writeFile(join(root,file),source.replace(/\r\n?/g,'\n').replace(/\n/g,'\r\n'));
     }
@@ -278,6 +279,47 @@ test('external abort handles a pending initial mount as in React StrictMode clea
   const f=fixture(),cancel=new AbortController();let complete,disposed=0;
   const create=async()=>new Promise(resolve=>complete=()=>resolve({page:()=>6,next(){},previous(){},dispose(){disposed++;}}));
   const pending=mountPageCurl({...f.options,signal:cancel.signal,factories:{desktop:create,mobile:create}});
-  const assertion=assert.rejects(pending,{name:'AbortError'});await Promise.resolve();await Promise.resolve();cancel.abort();complete();await assertion;
+  const assertion=assert.rejects(pending,{name:'AbortError'});while(!complete)await Promise.resolve();cancel.abort();complete();await assertion;
   assert.equal(disposed,1);assert.equal(f.mediaListeners.size,0);
+});
+test('mixed content retains order and document pagination works with LF and CRLF',async()=>{
+  for(const newline of ['\n','\r\n']){
+    const pages=await preparePages(['cover.png',{type:'markdown',content:`# First${newline}<!-- pagebreak -->${newline}# Second`},{type:'svg',content:'<svg/>'}]);
+    assert.equal(pages.length,4);assert.equal(pages[0],'cover.png');assert.match(pages[1].content,/# First/);assert.match(pages[2].content,/# Second/);assert.equal(pages[3].type,'svg');
+  }
+});
+test('odd document counts receive exactly one blank face, without mutating input',async()=>{
+  const original=[{type:'html',content:'<h1>One</h1>'}];
+  const pages=await preparePages(original);assert.deepEqual(pages[1],{type:'blank'});assert.equal(original.length,1);
+  assert.deepEqual(await preparePages(pages),pages);
+  assert.deepEqual(await preparePages(['image.png']),['image.png']);
+});
+test('invalid content descriptors reject with clear errors before rendering',()=>{
+  for(const page of [{type:'pdf',src:'a',page:0},{type:'pdf',src:'a',pages:[1,-2]},
+    {type:'html',content:'x',src:'y'},{type:'markdown'},{type:'svg',content:'x',width:9000},
+    {type:'html',content:'x',scale:0},{type:'html',content:'x',width:4096,scale:2},
+    {type:'image',content:'x'},{type:'html',content:'x',typo:true},{type:'ai',src:'x'}])assert.throws(()=>validatePage(page));
+});
+test('source content fetching propagates HTTP errors and expands fetched Markdown',async()=>{
+  const environment={fetch:async()=>({ok:true,text:async()=> '# A\n<!-- pagebreak -->\n# B'})};
+  const pages=await preparePages([{type:'markdown',src:'/article.md'}],{environment});
+  assert.equal(pages.length,2);assert(!pages[0].src);assert.match(pages[1].content,/# B/);
+  assert.equal(pages[0].baseURL,'http://localhost/article.md');
+  await assert.rejects(preparePages([{type:'html',src:'/404'}],{environment:{fetch:async()=>({ok:false,status:404})}}),/404/);
+});
+test('abort during document preprocessing never creates a renderer or leaves media listeners',async()=>{
+  const f=fixture(),cancel=new AbortController();let fetched=false;
+  f.options.config={pages:[{type:'markdown',src:'/slow'}],startPage:0};
+  f.options.environment.fetch=(url,{signal})=>new Promise((resolve,reject)=>{fetched=true;signal.addEventListener('abort',()=>reject(Object.assign(new Error('cancelled'),{name:'AbortError'})),{once:true});});
+  const pending=mountPageCurl({...f.options,signal:cancel.signal});while(!fetched)await Promise.resolve();cancel.abort();
+  await assert.rejects(pending,{name:'AbortError'});assert.equal(f.renderers.length,0);assert.equal(f.mediaListeners.size,0);
+});
+test('content canvas textures belong to each factory and release on dispose',async()=>{
+  for(const factory of [mountDesktop,mountMobile]){
+    const f=fixture();f.options.config={pages:[{type:'blank'},{type:'blank'}],startPage:0};
+    let sheets;f.options.debug=internals=>sheets=internals.sheets;
+    const book=await factory(f.options);const texture=sheets[0].mesh.material.map;assert(texture.isCanvasTexture);
+    assert.equal(texture.image.width,800);assert.equal(texture.image.height,1102);
+    let released=0;texture.addEventListener('dispose',()=>released++);book.dispose();book.dispose();assert.equal(released,1);
+  }
 });

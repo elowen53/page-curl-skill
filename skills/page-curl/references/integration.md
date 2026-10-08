@@ -28,6 +28,8 @@ Elements come from framework refs or selectors scoped to a component root. There
 | `config` | Optional | `mode`, image URL `pages`, `startPage`, `startSheet`, optional `title` |
 | `signal` | Optional AbortSignal | Cancel before a handle exists, or release an existing mount |
 | `environment.createCanvas` | Owning document's canvas creation | Procedural artwork |
+| `environment.document` | Stage's owning document | Sandboxed HTML/Markdown capture and SVG image decoding |
+| `environment.fetch` | Owning window's bound method | HTML/Markdown/SVG URL sources; PDF.js manages its own URL loading |
 | `environment.ResizeObserver` | Owning window's constructor | Stage resize observation |
 | `environment.performance` | Owning window's performance | Instance clock; inject `{now}` in tests |
 | `environment.devicePixelRatio` | Owning window's ratio, fallback 1 | Pixel density |
@@ -55,7 +57,7 @@ Both models use a shared 64×88 segmented plane and independent uniforms. Deskto
 
 Camera-facing normals in view space are deliberate for this frontal presentation. Camera orbit, arbitrary orientation and normal maps require revisiting the convention. Shadow bounds must cover actual light-to-paper distances. Diagnose wrong-face textures, normals, precision and stack intersections for dark flashes.
 
-Pages are static artwork, not interactive HTML surfaces. Core deformation is included; accelerated long press, automatic book-end replay and original fine paper/ink noise are outside the current scope.
+Pages accept images and static snapshots of HTML/Markdown, PDF or SVG. Read [content.md](content.md) for descriptors, pagination, dependencies and format limits. Framework examples pass descriptors through unchanged. Keep `assets/vendor/` with the other assets. Core deformation is included; accelerated long press, automatic book-end replay and original fine paper/ink noise are outside the current scope.
 
 ## Restricted harnesses
 

@@ -1,11 +1,11 @@
 {
   "date": "2026-10-08",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "threeRevision": "162",
   "nodeVersion": "20.20.2",
   "automatedTests": {
-    "passed": 27,
-    "installedSkillTestsPassed": 22,
+    "passed": 36,
+    "installedSkillTestsPassed": 28,
     "failed": 0
   },
   "skillFrontmatterValidation": "passed",
@@ -41,15 +41,32 @@
     "independentInjectedInstances": "passed",
     "textureFailureAndAbortCleanup": "passed",
     "serializedResponsiveLifecycle": "passed",
-    "childProcessApisDisabledInProcessSuite": "27 passed",
+    "childProcessApisDisabledInProcessSuite": "36 passed",
     "typeDeclarations": "TypeScript 5.9.3 passed",
-    "vueExample": "SFC compiled; browser turn, props update, unmount/remount verified",
-    "reactExample": "compiled; browser StrictMode, turn, props update, unmount/remount verified",
+    "vueExample": "v1.3 SFC compiled; browser lifecycle verified in v1.2 baseline",
+    "reactExample": "v1.3 compiled; browser StrictMode lifecycle verified in v1.2 baseline",
     "canvasCounts": {
       "unmounted": 0,
       "mounted": 1,
       "remounted": 1
     },
     "factoryDemoShaderErrors": 0
+  },
+  "contentChecks": {
+    "browserRendering": "6 passed / 0 failed",
+    "formats": [
+      "HTML",
+      "Markdown GFM",
+      "SVG paths and internal references",
+      "three-page PDF"
+    ],
+    "pdfSelections": "selected order and out-of-range rejection passed",
+    "transparentSVG": "composited onto opaque white paper",
+    "htmlIsolation": "scripts/event handlers removed; no residual iframe",
+    "longArticles": "explicit overflow error",
+    "offlineSample": "HTML / Markdown / SVG / PDF, self-contained import map and matching worker",
+    "contentSampleConsoleErrors": 0,
+    "frameworkDeclarations": "TypeScript 5.9.3 passed",
+    "limits": "Static rasterized surfaces; no live DOM interaction or vector-preserving zoom. Embedded PDF fonts recommended; advanced PDF/CMap cases require pre-rendering."
   }
 }

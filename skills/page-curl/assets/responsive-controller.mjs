@@ -1,6 +1,6 @@
 import {mountDesktop} from './page-curl.js';
 import {mountMobile} from './mobile-curl.js';
-import {normalizeConfig,resolveEnvironment,abortError} from './runtime-support.mjs';
+import {normalizeConfig,resolveEnvironment,abortError,preparePages} from './runtime-support.mjs';
 export const BREAKPOINT='(min-width: 768px) and (orientation: landscape)';
 
 /** Mount one book. dispose() also cancels a pending mount or mode switch.
@@ -11,8 +11,15 @@ export async function mountPageCurl(options){
   const {stage,prev,next,status,signal,onError}=options;
   for(const [name,element] of Object.entries({stage,prev,next,status}))if(!element)throw new Error(`Missing page curl element: ${name}`);
   const overrides=Object.fromEntries(['mode','pages','startPage','startSheet'].filter(key=>options[key]!==undefined).map(key=>[key,options[key]]));
-  const config=normalizeConfig({...options.config,...overrides});
   const env=resolveEnvironment(stage,options.environment),controller=new env.AbortController();
+  const raw={...options.config,...overrides};
+  prev.disabled=next.disabled=true;
+  const cancelPreparation=()=>controller.abort();signal?.addEventListener('abort',cancelPreparation,{once:true});
+  let config;
+  try{
+    if(signal?.aborted)throw abortError();
+    config=normalizeConfig({...raw,pages:await preparePages(raw.pages??[],{environment:env,signal:controller.signal})});
+  }finally{signal?.removeEventListener('abort',cancelPreparation);}
   const factories=options.factories??{desktop:mountDesktop,mobile:mountMobile};
   if(config.mode==='auto' && !env.matchMedia)throw new Error('Auto mode requires environment.matchMedia');
   const media=config.mode==='auto'?env.matchMedia(BREAKPOINT):null;

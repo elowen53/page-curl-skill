@@ -1,6 +1,6 @@
 ---
 name: page-curl
-description: Build or repair responsive WebGL book page-turn effects using a tested Three.js and GLSL template, with desktop double-page cylindrical curls, mobile single-page conical rolls, drag release, shadows and stable landing. Use for realistic book or magazine page curls, not ordinary carousels or full cloth simulation.
+description: Build or repair responsive WebGL magazine page turns from images, HTML, Markdown, PDF or SVG using tested Three.js and GLSL factories, with desktop cylindrical curls, mobile conical rolls, drag release and stable landing. Use for realistic page curls, not ordinary carousels or cloth simulation.
 ---
 
 # Page Curl
@@ -17,7 +17,7 @@ Resolve paths relative to this skill folder. Node.js 18+ is required; no npm ins
 node scripts/create-demo.mjs --output /absolute/path/book.html
 ```
 
-For supplied images, create a JSON configuration and pass `--config /absolute/path/book.json`:
+For supplied content, create a JSON configuration and pass `--config /absolute/path/book.json`. Images remain supported:
 
 ```json
 {
@@ -29,6 +29,8 @@ For supplied images, create a JSON configuration and pass `--config /absolute/pa
 ```
 
 Image paths resolve relative to the config file. Use an even count of at least two PNG, JPEG or WebP images. Desktop mode pairs consecutive images as front/back of each physical sheet. Mobile mode uses each image as one leaf's front, with a shared blank paper back. The generator embeds them and Three.js r162 into a standalone HTML. It validates config before writing and waits for textures to decode before enabling interaction. Without images it generates light/dark specimens.
+
+For HTML, Markdown, PDF or SVG read [references/content.md](references/content.md). File paths infer those types in the generator; runtime factories use descriptors such as `{type:'markdown',content:'# Article'}` or `{type:'pdf',src:'/issue.pdf'}`. The shared controller expands PDF pages, honors selected one-based page numbers, splits articles at `<!-- pagebreak -->`, and pads an odd document count with blank paper. Choose `startPage:0` for opening documents. Preserve original sources; curled surfaces are static textures, with no live HTML controls or selectable text. Paginate long text and preview its layout; overflow must not silently crop content. Required renderer vendors are bundled and included only when needed in generated HTML. Do not ask the end user to install or rasterize dependencies.
 
 `mode` defaults to `auto`: desktop requires both width ≥768px and landscape orientation; all other viewports use mobile. This is the observed Paper Mono breakpoint, including wide portrait windows. `desktop` or `mobile` forces a model. `startSheet` is zero-based desktop spread depth; `startPage` overrides it with a zero-based artwork index. Switching modes preserves the artwork index, rounded down to its spread when entering desktop; entering mobile clamps the closed-book index to the last visible leaf. Each switch must dispose the old scene before mounting its replacement.
 

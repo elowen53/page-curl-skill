@@ -19,6 +19,7 @@ jobs:
       - uses: actions/configure-pages@v5
       - run: npm test
       - run: node skills/page-curl/scripts/create-demo.mjs --output _site/index.html
+      - run: node scripts/create-content-preview.mjs _site/content.html
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site

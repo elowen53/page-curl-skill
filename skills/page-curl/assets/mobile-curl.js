@@ -43,8 +43,8 @@ function specimen(index,blank=false){
   const t=scope.own(new THREE.CanvasTexture(c));t.colorSpace=THREE.SRGBColorSpace;
   t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;
 }
-const textures=await loadTextures(THREE,config.pages,scope).catch(error=>{
-  if(error.name!=='AbortError')status.textContent='页面图片无法解码，请检查输入文件。';throw error;
+const textures=await loadTextures(THREE,config.pages,scope,env).catch(error=>{
+  if(error.name!=='AbortError')status.textContent='页面内容加载失败：'+error.message;throw error;
 });
 scope.assertActive();
 textures.forEach(t=>{t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=renderer.capabilities.getMaxAnisotropy();});

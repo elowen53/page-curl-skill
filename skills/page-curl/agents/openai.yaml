@@ -1,4 +1,4 @@
 interface:
-  display_name: "Page Curl · 书本翻页"
-  short_description: "Responsive book curls: desktop spreads and mobile cone rolls"
-  default_prompt: "Use $page-curl to build responsive book page turns with desktop spreads and mobile conical rolls. Verify light pages, dragging, stable landing and resize teardown."
+  display_name: "Page Curl · 杂志翻页"
+  short_description: "3D magazine curls from images, HTML, Markdown, PDF and SVG"
+  default_prompt: "Use $page-curl to build responsive magazine page turns from my content, with desktop spreads and mobile conical rolls. Verify content layout, light pages, dragging, stable landing and resize teardown."
