@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paper Mono 翻页原理复现</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#f6f6f3;color:#222;font:14px system-ui}header{padding:20px 28px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #cfdff5}h1{font-size:18px;margin:0}main{height:calc(100vh - 155px);min-height:340px;background-image:linear-gradient(#cfdff5 1px,transparent 1px),linear-gradient(90deg,#cfdff5 1px,transparent 1px);background-size:24px 24px}canvas{width:100%;height:100%;display:block;touch-action:pan-y;cursor:grab}footer{text-align:center;padding:15px}button{padding:8px 16px;border:1px solid #bed1ec;border-radius:6px;background:white;cursor:pointer}output{margin:0 14px}small{display:block;margin-top:10px;color:#666}</style>
+<header><h1>纸张翻页 · 原理复现</h1><span>Three.js r162 + GLSL</span></header>
+<main id="stage"></main><footer><button id="prev">← 上一页</button><output id="status"></output><button id="next">下一页 →</button><small>点击左右页或横向拖动翻页，悬停时轻微卷角。演示使用自制纸面，复现桌面核心算法。</small></footer>
+<script type="module">
+import * as THREE from '__THREE_MODULE__';
+__DEMO_CODE__
+</script></html>

@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-08",
+  "threeRevision": "162",
+  "nodeVersion": "20.20.2",
+  "automatedTests": { "passed": 12, "failed": 0 },
+  "skillFrontmatterValidation": "passed",
+  "visualChecks": {
+    "environment": "Windows Codex in-app browser",
+    "lightPageForwardIntermediateFrame": "passed",
+    "lightPageBackwardIntermediateFrame": "passed",
+    "settledFramesIdenticalAfterIdle": true,
+    "customJpegTexturesDecodedAndTurned": "passed",
+    "consoleShaderErrors": 0
+  },
+  "limits": "Temporal tests use the actual template with a mock renderer. Visual checks cover this browser/GPU environment and do not guarantee all devices. Dedicated mobile conical deformation is outside this skill."
+}

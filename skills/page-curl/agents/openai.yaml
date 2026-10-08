@@ -1,0 +1,4 @@
+interface:
+  display_name: "Page Curl · 书本翻页"
+  short_description: "Reproduce stable Three.js book curls with offline assets"
+  default_prompt: "Use $page-curl to build a realistic book page-turn effect and verify light pages, dragging and stable landing."
