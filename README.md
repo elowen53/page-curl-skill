@@ -1,59 +1,50 @@
-# Page Curl
+# 杂志翻页 · Page Curl
 
-纸张弯曲、卷绕与落地。一套可复用的 WebGL 翻页实现与 Codex skill。
+让 AI 为你的网站、作品集或电子刊物制作立体翻页效果。
 
-基于 [Paper Mono](https://paper.design/mono) 的公开前端观察独立重建，使用 Three.js 与 GLSL。桌面呈现双页展开，窄屏呈现单页纸卷；支持点击、拖拽与回弹。
+这是一份给 AI 编程工具使用的 skill。它提供翻页实现、交互规则和检查方法，帮助 AI 把效果接入你的项目。你只需描述想做什么，并提供页面内容。
 
-[点击预览 ↗](https://elowen53.github.io/page-curl-skill/) · [使用指南](skills/page-curl/SKILL.md) · [形变原理](skills/page-curl/references/mobile-reverse.md) · [集成说明](skills/page-curl/references/integration.md)
+[点击预览 ↗](https://elowen53.github.io/page-curl-skill/) · [获取 skill](skills/page-curl) · [技能说明](skills/page-curl/SKILL.md)
 
-## 开始
+## 怎么使用
 
-打开[在线预览](https://elowen53.github.io/page-curl-skill/)即可体验翻页，缩窄窗口可查看单页卷绕。下载仓库后，也可在浏览器中打开 [example.html](example.html)，或用 Node.js 18+ 生成独立文件，无需安装依赖：
+可以交给 Codex、Claude Code、Kimi 等 AI 编程工具使用。工具需要能够读取技能文件、修改项目并检查网页；不同工具的技能加载方式可能不同。
 
-```sh
-node skills/page-curl/scripts/create-demo.mjs --output book.html
-```
+把本仓库地址发给你正在使用的 AI，并告诉它：
 
-页面与 Three.js 均嵌入 HTML，生成后可离线使用。
+> 请将这个仓库中的 page-curl skill 配置到当前工具可使用的位置，阅读技能说明和配套文件，之后用它帮我制作 3D 杂志翻页效果。如果当前环境无法自动加载 skill，请先读取这些文件，再按其中的说明完成制作。
 
-作为 Codex skill 使用，将 [`skills/page-curl`](skills/page-curl) 放入 `~/.codex/skills/page-curl`，在对话中调用 `$page-curl`。
+配置好后，直接用自然语言描述需求。例如：
 
-## 页面与模式
+> 使用 page-curl skill，把我的作品集做成一本可以翻页的杂志。电脑上显示左右双页，手机上显示单页纸卷。沿用我现在的颜色和字体，做好后给我一个可以查看的预览。
 
-将配置保存为 `book.json`。图片路径相对于配置文件，建议宽高比为 1:1.377。
+也可以让 AI 为已有页面加入效果：
 
-```json
-{
-  "title": "My magazine",
-  "mode": "auto",
-  "startSheet": 1,
-  "pages": ["a.png", "b.png", "c.png", "d.png"]
-}
-```
+> 使用 page-curl skill，为这个页面加入立体杂志翻页。使用我提供的图片作为内页，支持点击和拖动，并检查白页翻动时的颜色以及翻页结束后的稳定性。
 
-```sh
-node skills/page-curl/scripts/create-demo.mjs --config book.json --output book.html
-```
+实现、接入和检查由 AI 完成。使用者无需手动启动本仓库或编写配置文件。能否直接预览或发布，取决于所用工具和项目环境。
 
-| 模式 | 形态 | 页面排列 |
-| --- | --- | --- |
-| `desktop` | 双页展开，圆柱卷曲 | 每两张图片组成一张纸的正反面 |
-| `mobile` | 单页阅读，圆锥卷绕 | 每张图片作为正面，背面为白纸 |
-| `auto` | 随窗口切换，默认模式 | 宽度 ≥768px 且横向时使用双页，其余使用单页 |
+## 可以做什么
 
-切换时保留对应阅读位置，并释放旧渲染器。起始位置可通过 `startSheet` 指定跨页，或通过 `startPage` 指定页面图片编号，均从零开始。
+- **桌面双页**：左右展开，纸张弯曲后翻向另一侧。
+- **窄屏单页**：纸页绕书脊卷起，顶部露出层叠的页边。
+- **自然交互**：点击翻页、拖动翻页，小幅拖动后回弹。
+- **自己的内容**：用你的图片、杂志内页或作品展示替换示例纸面。
+- **融入现有设计**：让 AI 根据你的项目调整尺寸、背景、配色和控件。
 
-## 实现与验证
+默认随窗口切换双页与单页，也可以要求 AI 固定使用其中一种。页面数量、阅读起点和交互方式，都可以直接在对话中提出。
 
-连续形变同时用于纸面和阴影，法线随弯曲重新计算。纸层高度随翻页进度变化；落地后保持终点状态，避免二次过渡。运行回归检查：
+## 交给 AI 的内容
 
-```sh
-npm test
-```
+为了让制作更贴近你的想法，可以提供页面图片及顺序、希望加入效果的网站或项目，以及你喜欢的风格。暂时没有素材，也可以先让 AI 制作示例，再逐步替换。
 
-Three.js 固定为 0.162.0。自动测试覆盖几何接缝、交互状态与时间连续性；实际画面检查见[验证清单](skills/page-curl/references/verification.md)和[验证记录](verification.json)。在线预览由 GitHub Pages 发布，主分支更新时自动生成并部署。
+这份 skill 同时包含实现模板和验证要求。AI 应检查白纸翻动、正反面显示、拖拽回弹、落地稳定性和窗口切换，并说明实际完成了哪些检查。
 
-当前范围为两种翻页模型的核心几何与基本交互。演示使用原创纸面；原站的细腻纸墨纹理、长按加速与书末自动重播未包含。
+## 关于这个效果
+
+基于 [Paper Mono](https://paper.design/mono) 的公开前端观察独立重建，使用 Three.js 与 GLSL，包含桌面和窄屏两种核心翻页模型。在线预览使用原创示例纸面；原站的细腻纸墨纹理、长按加速和书末自动重播未包含。
+
+供 AI 或需要了解实现细节的人阅读：[集成说明](skills/page-curl/references/integration.md) · [形变原理](skills/page-curl/references/mobile-reverse.md) · [验证清单](skills/page-curl/references/verification.md) · [验证记录](verification.json)
 
 ## 许可
 
