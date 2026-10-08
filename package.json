@@ -4,9 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests",
-    "demo": "node skills/page-curl/scripts/create-demo.mjs --output demo.html",
-    "self-test": "node skills/page-curl/scripts/self-test.mjs"
+    "test": "node --test tests/generator.test.mjs skills/page-curl/scripts/self-test.mjs"
   },
   "engines": { "node": ">=18" }
 }

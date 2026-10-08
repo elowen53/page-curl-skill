@@ -45,7 +45,7 @@ For integration, start from `assets/page-curl.js` (desktop), `assets/mobile-curl
 
 ## Verify the result
 
-Run `node --test tests` from the repository containing this skill when those tests are available. For a standalone installed skill, run `node scripts/self-test.mjs` to execute its bundled temporal and shader-compatibility checks.
+Run `npm test` from the repository containing this skill when its package metadata and generator tests are available. This runs the generator checks and bundled self-test directly. For a standalone installed skill, run `node scripts/self-test.mjs` to execute its temporal and shader-compatibility checks.
 
 Also inspect actual WebGL rendering in an allowed browser preview. Automated simulation does not prove pixel correctness. Exercise both models with a white sheet forward/backward, a dark sheet, a committed drag, a short drag, rapid input and boundaries. Observe intermediate frames and compare settled frames after the pointer stops. Check cone taper and fanned edges at narrow width, repeat wide/narrow switches, and inspect wide portrait mode. Ensure exactly one canvas and no console shader errors. Report only checks actually performed and any browser/GPU limitations.
 
